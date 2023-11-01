@@ -1,3 +1,5 @@
+#include "common.h"
+
 #include <spdlog/spdlog.h>
 #include <glad/glad.h> // glfw 추가 이전에 쓸 것
 #include <GLFW/glfw3.h>

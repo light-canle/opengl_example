@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.13)
 
-set(PROJECT_NAME first_opengl_example)
+set(PROJECT_NAME opengl_example)
 set(CMAKE_CXX_STANDARD 17)
 
 # glfw 관련 환경 변수
-set(WINDOW_NAME "First OpenGL example")
+set(WINDOW_NAME "OpenGL example")
 set(WINDOW_WIDTH 960)
 set(WINDOW_HEIGHT 540)
 
