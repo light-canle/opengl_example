@@ -1,4 +1,5 @@
 #include "common.h"
+#include "shader.h"
 
 #include <spdlog/spdlog.h>
 #include <glad/glad.h> // glfw 추가 이전에 쓸 것
@@ -68,6 +69,12 @@ int main(int argc, const char **argv){
     }
     auto glVersion = reinterpret_cast<const char*>(glGetString(GL_VERSION));
     SPDLOG_INFO("OpenGL context version: {}", glVersion);
+
+    // 쉐이더 생성
+    auto vertexShader = Shader::CreateFromFile("./shader/simple.vert", GL_VERTEX_SHADER);
+    auto fragmentShader = Shader::CreateFromFile("./shader/simple.frag", GL_FRAGMENT_SHADER);
+    SPDLOG_INFO("vertex shader id: {}", vertexShader->Get());
+    SPDLOG_INFO("fragment shader id: {}", fragmentShader->Get());
 
     // 호출할 콜백 함수 지정
     OnFramebufferSizeChange(window, WINDOW_WIDTH, WINDOW_HEIGHT); // 창 크기 지정

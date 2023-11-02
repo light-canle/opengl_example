@@ -9,7 +9,11 @@ set(WINDOW_WIDTH 960)
 set(WINDOW_HEIGHT 540)
 
 project(${PROJECT_NAME})
-add_executable(${PROJECT_NAME} src/main.cpp) # 실행 파일
+add_executable(${PROJECT_NAME} 
+    src/main.cpp
+    src/common.cpp src/common.h
+    src/shader.cpp src/shader.h
+    ) # 실행 파일 - 파일들을 새로이 만들 때마다 추가해 주어야 오류가 안 생긴다.
 
 include(Dependency.cmake)
 
