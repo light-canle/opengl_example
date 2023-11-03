@@ -1,0 +1,37 @@
+#include "program.h"
+
+ProgramUPtr Program::Create(const std::vector<ShaderPtr>& shaders) {
+    auto program = ProgramUPtr(new Program());
+    if (!program->Link(shaders))
+        return nullptr;
+    return std::move(program);
+}
+
+bool Program::Link(const std::vector<ShaderPtr>& shaders) {
+    // 프로그램 생성
+    m_program = glCreateProgram();
+    // 쉐이더들을 프로그램에 붙임
+    for (auto& shader: shaders)
+        glAttachShader(m_program, shader->Get());
+    // 프로그램 링크
+    glLinkProgram(m_program);
+
+    // 프로그램 링크가 성공적으로 이루어졌는지 판단
+    int success = 0;
+    glGetProgramiv(m_program, GL_LINK_STATUS, &success);
+    // 실패한 경우 오류 출력
+    if (!success) {
+        char infoLog[1024];
+        glGetProgramInfoLog(m_program, 1024, nullptr, infoLog);
+        SPDLOG_ERROR("failed to link program: {}", infoLog);
+        return false;
+    }
+    return true;
+}
+
+// 프로그램 소멸자
+Program::~Program() {
+    if (m_program) {
+        glDeleteProgram(m_program);
+    }
+}

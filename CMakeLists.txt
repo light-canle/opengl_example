@@ -13,6 +13,8 @@ add_executable(${PROJECT_NAME}
     src/main.cpp
     src/common.cpp src/common.h
     src/shader.cpp src/shader.h
+    src/program.cpp src/program.h
+    src/context.cpp src/context.h
     ) # 실행 파일 - 파일들을 새로이 만들 때마다 추가해 주어야 오류가 안 생긴다.
 
 include(Dependency.cmake)

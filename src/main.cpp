@@ -1,5 +1,4 @@
-#include "common.h"
-#include "shader.h"
+#include "context.h"
 
 #include <spdlog/spdlog.h>
 #include <glad/glad.h> // glfw 추가 이전에 쓸 것
@@ -70,11 +69,14 @@ int main(int argc, const char **argv){
     auto glVersion = reinterpret_cast<const char*>(glGetString(GL_VERSION));
     SPDLOG_INFO("OpenGL context version: {}", glVersion);
 
-    // 쉐이더 생성
-    auto vertexShader = Shader::CreateFromFile("./shader/simple.vert", GL_VERTEX_SHADER);
-    auto fragmentShader = Shader::CreateFromFile("./shader/simple.frag", GL_FRAGMENT_SHADER);
-    SPDLOG_INFO("vertex shader id: {}", vertexShader->Get());
-    SPDLOG_INFO("fragment shader id: {}", fragmentShader->Get());
+    // context로 쉐이더와 프로그램 동시에 생성
+    auto context = Context::Create();
+    // 생성 실패한 경우
+    if (!context) {
+        SPDLOG_ERROR("failed to create context");
+        glfwTerminate();
+        return -1;
+    }
 
     // 호출할 콜백 함수 지정
     OnFramebufferSizeChange(window, WINDOW_WIDTH, WINDOW_HEIGHT); // 창 크기 지정
@@ -88,14 +90,14 @@ int main(int argc, const char **argv){
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents(); // 키보드, 마우스 등 각종 이벤트 수집
 
-        // 렌더링
-        // 배경색 지정(RGBA)
-        glClearColor(0.1f, 0.2f, 0.3f, 1.0f);
-        // 실제 초기화 수행
-        glClear(GL_COLOR_BUFFER_BIT);
+        // 렌더링 
+        context->Render();
+        
         // 프론트/백 버퍼 교체
         glfwSwapBuffers(window);
     }
+    // 메모리 해제
+    context.reset();
 
     glfwTerminate();
     return 0;
