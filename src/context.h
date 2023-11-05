@@ -18,6 +18,11 @@ private:
     bool Init();
     // 프로그램 저장용 포인터
     ProgramUPtr m_program;
+
+    // VAO 오브젝트
+    uint32_t m_vertexArrayObject;
+    // VBO 오브젝트
+    uint32_t m_vertexBuffer;
 };
 
 #endif
