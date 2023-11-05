@@ -9,27 +9,29 @@ ContextUPtr Context::Create() {
 
 bool Context::Init() {
     // 정점 데이터
-    float vertices[] = { 
-        -0.5f, -0.5f, 0.0f,
-         0.5f, -0.5f, 0.0f,
-         0.0f,  0.5f, 0.0f,
+    float vertices[] = {
+        0.5f, 0.5f, 0.0f, // top right(0)
+        0.5f, -0.5f, 0.0f, // bottom right(1)
+        -0.5f, -0.5f, 0.0f, // bottom left(2)
+        -0.5f, 0.5f, 0.0f, // top left(3)
+    };
+    // 인덱스 데이터
+    uint32_t indices[] = { // note that we start from 0!
+        0, 1, 3, // first triangle
+        1, 2, 3, // second triangle
     };
 
     // 1. VAO 바인딩 - VBO 바인딩 전에 함(그래야 VAO에 대응하는 VBO가 지정된다.)
-    glGenVertexArrays(1, &m_vertexArrayObject);
-    glBindVertexArray(m_vertexArrayObject);
+    m_vertexLayout = VertexLayout::Create();
 
     // 2. VBO 바인딩 / 정점 데이터 복사
-    glGenBuffers(1, &m_vertexBuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, m_vertexBuffer); // 버퍼 바인딩(지금 사용할 버퍼 오브젝트를 결정)
-    // 정점 데이터 복사
-    // GL_STATIC_DRAW는 이 버퍼에 데이터를 1번 넣은 뒤 바꾸지 않겠다는 것을 뜻함
-    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 9, vertices, GL_STATIC_DRAW); 
+    m_vertexBuffer = Buffer::CreateWithData(GL_ARRAY_BUFFER, GL_STATIC_DRAW, vertices, sizeof(float) * 12);
 
     // 3. VAO에서 정점 데이터의 속성을 지정
-    glEnableVertexAttribArray(0); // 0번 속성(Position)
-    // 0번 속성의 데이터의 정보(데이터 수, 한 데이터의 타입, 정규화 여부, 바이트 크기, 오프셋) 지정
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
+    m_vertexLayout->SetAttrib(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
+
+    // 4. EBO 바인딩
+    m_indexBuffer = Buffer::CreateWithData(GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW, indices, sizeof(uint32_t) * 6);
 
     // 쉐이더 초기화
     ShaderPtr vertShader = Shader::CreateFromFile("./shader/simple.vert", GL_VERTEX_SHADER);
@@ -59,9 +61,9 @@ void Context::Render(){
     glClear(GL_COLOR_BUFFER_BIT);
 
     // 프로그램 사용
-    glUseProgram(m_program->Get());
+    m_program->Use();
 
     // 화면에 그리는 코드
-    // 그리는 방식, 시작 인덱스, 정점 개수를 지정
-    glDrawArrays(GL_TRIANGLES, 0, 3);
+    // 그리는 방식, 정점 개수, 인덱스 데이터 타입, 오프셋을 지정
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 }

@@ -35,3 +35,8 @@ Program::~Program() {
         glDeleteProgram(m_program);
     }
 }
+
+// 프로그램 사용
+void Program::Use() const{
+    glUseProgram(m_program);
+}

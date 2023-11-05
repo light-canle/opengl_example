@@ -4,8 +4,12 @@
 #include "common.h"
 #include "shader.h"
 #include "program.h"
+#include "buffer.h"
+#include "vertex_layout.h"
 
 CLASS_PTR(Context)
+CLASS_PTR(Buffer)
+CLASS_PTR(VertexLayout)
 class Context {
 public:
     // 생성 함수
@@ -20,9 +24,11 @@ private:
     ProgramUPtr m_program;
 
     // VAO 오브젝트
-    uint32_t m_vertexArrayObject;
+    VertexLayoutUPtr m_vertexLayout;
     // VBO 오브젝트
-    uint32_t m_vertexBuffer;
+    BufferUPtr m_vertexBuffer;
+    // EBO 오브젝트
+    BufferUPtr m_indexBuffer;
 };
 
 #endif
