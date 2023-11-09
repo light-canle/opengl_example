@@ -1,6 +1,8 @@
 #version 330 core
-out vec4 fragColor;
 
-void main(){
-    fragColor = vec4(1.0, 0.5, 0.0, 1.0);
+uniform vec4 color; // 프로그램으로부터 입력된 변수 (같은 변수명, 같은 타입)
+out vec4 fragColor; // 최종 출력 색상
+
+void main() {
+    fragColor = color;
 }
