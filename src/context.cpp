@@ -1,4 +1,5 @@
 #include "context.h"
+#include "image.h"
 
 ContextUPtr Context::Create() {
     auto context = ContextUPtr(new Context());
@@ -10,10 +11,11 @@ ContextUPtr Context::Create() {
 bool Context::Init() {
     // 정점 데이터
     float vertices[] = {
-         0.5f,  0.5f, 0.0f, 1.0f, 0.0f, 0.0f, // top right, red
-         0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 0.0f, // bottom right, green
-        -0.5f, -0.5f, 0.0f, 0.0f, 0.0f, 1.0f, // bottom left, blue
-        -0.5f,  0.5f, 0.0f, 1.0f, 1.0f, 0.0f, // top left, yellow
+        // x, y, z(정점 위치), r, g, b(정점 색깔), s, t(정점의 텍스쳐 좌표)
+         0.5f,  0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, // 
+         0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f,
+        -0.5f, -0.5f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+        -0.5f,  0.5f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f,
     };
     // 인덱스 데이터
     uint32_t indices[] = { // note that we start from 0!
@@ -25,18 +27,21 @@ bool Context::Init() {
     m_vertexLayout = VertexLayout::Create();
 
     // 2. VBO 바인딩 / 정점 데이터 복사
-    m_vertexBuffer = Buffer::CreateWithData(GL_ARRAY_BUFFER, GL_STATIC_DRAW, vertices, sizeof(float) * 24);
+    // 마지막 인자에 곱해지는 값은 정점 리스트의 데이터 크기이다.
+    m_vertexBuffer = Buffer::CreateWithData(GL_ARRAY_BUFFER, GL_STATIC_DRAW, vertices, sizeof(float) * 32);
 
     // 3. VAO에서 정점 데이터의 속성을 지정
-    m_vertexLayout->SetAttrib(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 6, 0); // 위치
-    m_vertexLayout->SetAttrib(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 6, sizeof(float) * 3); // 색상
+    // 5번째 인자에 곱해지는 값은 한 정점 당 데이터 크기이다.(지금은 위치 3개, 색깔 3개, 텍스쳐 2개로 총 8개)
+    m_vertexLayout->SetAttrib(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 8, 0); // 위치(0-2)
+    m_vertexLayout->SetAttrib(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 8, sizeof(float) * 3); // 색상(3-5)
+    m_vertexLayout->SetAttrib(2, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 8, sizeof(float) * 6); // 텍스쳐 좌표(6-7)
 
     // 4. EBO 바인딩
     m_indexBuffer = Buffer::CreateWithData(GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW, indices, sizeof(uint32_t) * 6);
 
     // 쉐이더 초기화
-    ShaderPtr vertShader = Shader::CreateFromFile("./shader/vertexColor.vert", GL_VERTEX_SHADER);
-    ShaderPtr fragShader = Shader::CreateFromFile("./shader/vertexColor.frag", GL_FRAGMENT_SHADER);
+    ShaderPtr vertShader = Shader::CreateFromFile("./shader/texture.vert", GL_VERTEX_SHADER);
+    ShaderPtr fragShader = Shader::CreateFromFile("./shader/texture.frag", GL_FRAGMENT_SHADER);
     // 쉐이더 초기화 실패한 경우
     if (!vertShader || !fragShader)
         return false;
@@ -60,6 +65,28 @@ bool Context::Init() {
     // glfw 윈도우 배경색 지정(RGBA)
     glClearColor(0.1f, 0.2f, 0.3f, 1.0f);
 
+    // 텍스쳐에 쓸 이미지 로드
+    auto image = Image::Load("./image/container.jpg");
+    if (!image) 
+        return false;
+    // 이미지 정보 출력
+    SPDLOG_INFO("image: {}x{}, {} channels", 
+        image->GetWidth(), image->GetHeight(), image->GetChannelCount());
+
+    // 텍스쳐 생성
+    glGenTextures(1, &m_texture);
+    // 텍스쳐 바인딩
+    glBindTexture(GL_TEXTURE_2D, m_texture);
+    // 바인딩된 텍스쳐의 속성 설정
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); // 텍스쳐 필터 (MIN은 작을 때, MAG는 클 때)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); // 텍스쳐 래핑(0~1을 벗어난 좌표에 대한 처리)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    // 이미지 데이터를 GPU에 복사
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 
+        image->GetWidth(), image->GetHeight(), 0, // 이미지 가로, 세로, 보더 크기(이미지 주위를 감싸는 테두리)
+        GL_RGB, GL_UNSIGNED_BYTE, image->GetData()); // 이미지 데이터 타입, 1채널 데이터 타입, 실제 이미지 데이터
     return true;
 }
 

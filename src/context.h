@@ -29,6 +29,8 @@ private:
     BufferUPtr m_vertexBuffer;
     // EBO 오브젝트
     BufferUPtr m_indexBuffer;
+    // Texture Id
+    uint32_t m_texture;
 };
 
 #endif
