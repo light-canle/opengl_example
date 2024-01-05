@@ -32,6 +32,7 @@ private:
     BufferUPtr m_indexBuffer;
     // Texture 오브젝트
     TextureUPtr m_texture;
+    TextureUPtr m_texture2;
 };
 
 #endif

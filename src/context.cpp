@@ -66,19 +66,31 @@ bool Context::Init() {
     glClearColor(0.1f, 0.2f, 0.3f, 1.0f);
 
     // 텍스쳐에 쓸 이미지 로드
-    // auto image = Image::Load("./image/container.jpg");
-    // if (!image) 
-    //     return false;
+    auto image = Image::Load("./image/container.jpg");
+    if (!image) 
+        return false;
     // 이미지 정보 출력
-    // SPDLOG_INFO("image: {}x{}, {} channels", 
-    //     image->GetWidth(), image->GetHeight(), image->GetChannelCount());
-
-    // 체커 보드 이미지 생성
-    auto image = Image::Create(512, 512);
-    image->SetCheckImage(16, 16);
+    SPDLOG_INFO("image: {}x{}, {} channels", 
+        image->GetWidth(), image->GetHeight(), image->GetChannelCount());
 
     // 텍스쳐 생성
     m_texture = Texture::CreateFromImage(image.get());
+
+    auto image2 = Image::Load("./image/awesomeface.png");
+    if (!image2) 
+        return false;
+    m_texture2 = Texture::CreateFromImage(image2.get());
+    
+    // 두 텍스쳐를 각각 텍스쳐 슬롯 0, 1번에 넣는다.
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, m_texture->Get());
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, m_texture2->Get());
+
+    // 프래그먼트 쉐이더에 바인딩을 할 두 텍스쳐의 텍스쳐 슬롯 번호를 Uniform으로 전달해준다.
+    m_program->Use();
+    glUniform1i(glGetUniformLocation(m_program->Get(), "tex"), 0);
+    glUniform1i(glGetUniformLocation(m_program->Get(), "tex2"), 1);
 
     return true;
 }

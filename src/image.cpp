@@ -20,6 +20,7 @@ Image::~Image() {
 
 // 파일 경로를 받아 stb 라이브러리를 사용해서 이미지 생성
 bool Image::LoadWithStb(const std::string& filepath) {
+    stbi_set_flip_vertically_on_load(true); // 상하 반전으로 이미지를 원래대로 나타나게 함
     m_data = stbi_load(filepath.c_str(), &m_width, &m_height, &m_channelCount, 0);
     if (!m_data) {
         SPDLOG_ERROR("failed to load image: {}", filepath);
