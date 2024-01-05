@@ -66,13 +66,18 @@ bool Context::Init() {
     glClearColor(0.1f, 0.2f, 0.3f, 1.0f);
 
     // 텍스쳐에 쓸 이미지 로드
-    auto image = Image::Load("./image/container.jpg");
-    if (!image) 
-        return false;
+    // auto image = Image::Load("./image/container.jpg");
+    // if (!image) 
+    //     return false;
     // 이미지 정보 출력
-    SPDLOG_INFO("image: {}x{}, {} channels", 
-        image->GetWidth(), image->GetHeight(), image->GetChannelCount());
+    // SPDLOG_INFO("image: {}x{}, {} channels", 
+    //     image->GetWidth(), image->GetHeight(), image->GetChannelCount());
 
+    // 체커 보드 이미지 생성
+    auto image = Image::Create(512, 512);
+    image->SetCheckImage(16, 16);
+
+    // 텍스쳐 생성
     m_texture = Texture::CreateFromImage(image.get());
 
     return true;

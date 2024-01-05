@@ -39,7 +39,7 @@ void Texture::CreateTexture() {
     // bind and set default filter and wrap option (바인딩된 텍스쳐의 속성 설정)
     Bind();
     // 필터와 wrap 옵션의 기본값을 넣음
-    SetFilter(GL_LINEAR, GL_LINEAR);
+    SetFilter(GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
     SetWrap(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE);
 }
 
@@ -56,4 +56,7 @@ void Texture::SetTextureFromImage(const Image* image) {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
         image->GetWidth(), image->GetHeight(), 0, // 이미지 가로, 세로, 보더 크기(이미지 주위를 감싸는 테두리)
         format, GL_UNSIGNED_BYTE, image->GetData()); // 이미지 데이터 타입, 1채널 데이터 타입, 실제 이미지 데이터
+
+    // 텍스쳐를 위한 mipmap(이미지에 대한 더 작은 사본)을 만들어냄
+    glGenerateMipmap(GL_TEXTURE_2D);
 }
