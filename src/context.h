@@ -6,6 +6,7 @@
 #include "program.h"
 #include "buffer.h"
 #include "vertex_layout.h"
+#include "texture.h"
 
 CLASS_PTR(Context)
 CLASS_PTR(Buffer)
@@ -29,8 +30,8 @@ private:
     BufferUPtr m_vertexBuffer;
     // EBO 오브젝트
     BufferUPtr m_indexBuffer;
-    // Texture Id
-    uint32_t m_texture;
+    // Texture 오브젝트
+    TextureUPtr m_texture;
 };
 
 #endif

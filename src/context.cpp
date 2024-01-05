@@ -73,20 +73,8 @@ bool Context::Init() {
     SPDLOG_INFO("image: {}x{}, {} channels", 
         image->GetWidth(), image->GetHeight(), image->GetChannelCount());
 
-    // 텍스쳐 생성
-    glGenTextures(1, &m_texture);
-    // 텍스쳐 바인딩
-    glBindTexture(GL_TEXTURE_2D, m_texture);
-    // 바인딩된 텍스쳐의 속성 설정
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); // 텍스쳐 필터 (MIN은 작을 때, MAG는 클 때)
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); // 텍스쳐 래핑(0~1을 벗어난 좌표에 대한 처리)
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    m_texture = Texture::CreateFromImage(image.get());
 
-    // 이미지 데이터를 GPU에 복사
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 
-        image->GetWidth(), image->GetHeight(), 0, // 이미지 가로, 세로, 보더 크기(이미지 주위를 감싸는 테두리)
-        GL_RGB, GL_UNSIGNED_BYTE, image->GetData()); // 이미지 데이터 타입, 1채널 데이터 타입, 실제 이미지 데이터
     return true;
 }
 
