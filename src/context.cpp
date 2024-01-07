@@ -92,8 +92,20 @@ bool Context::Init() {
     glUniform1i(glGetUniformLocation(m_program->Get(), "tex"), 0);
     glUniform1i(glGetUniformLocation(m_program->Get(), "tex2"), 1);
 
+    // 1.1배 확대후 z축 기준으로 90도 회전하는 행렬
+    auto transform = glm::rotate(
+        glm::scale(glm::mat4(1.0f), glm::vec3(1.1f)),
+        glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)
+    );
+    // 변환 행렬을 vertex shader에 전달
+    auto transformLoc = glGetUniformLocation(m_program->Get(), "transform");
+    glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transform)); // value_ptr을 이용해 행렬을 전달
+
     return true;
 }
+
+// Note : 확대 -> 회전 -> 평행이동 순으로 점에 선형 변환 적용
+// translate로 평행이동, rotate로 회전, scale로 크기 변경
 
 // 렌더링 담당 함수
 void Context::Render(){
