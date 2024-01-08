@@ -122,7 +122,7 @@ bool Context::Init() {
     // 카메라는 원점으로부터 z축 방향으로 -3만큼 떨어짐
     auto view = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -3.0f));
     // 종횡비 960:540, 세로화각 45도의 원근 투영
-    auto projection = glm::perspective(glm::radians(45.0f), (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT, 0.01f, 10.0f);
+    auto projection = glm::perspective(glm::radians(45.0f), (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT, 0.01f, 20.0f);
     auto transform = projection * view * model; // (MVP matrix) 계산
     // 변환 행렬을 vertex shader에 전달
     m_program->SetUniform("transform", transform);
@@ -141,6 +141,20 @@ bool Context::Init() {
 
 // 렌더링 담당 함수
 void Context::Render(){
+    // 서로 다른 큐브들의 위치 리스트
+    std::vector<glm::vec3> cubePositions = {
+        glm::vec3( 0.0f, 0.0f, 0.0f),
+        glm::vec3( 2.0f, 5.0f, -15.0f),
+        glm::vec3(-1.5f, -2.2f, -2.5f),
+        glm::vec3(-3.8f, -2.0f, -12.3f),
+        glm::vec3( 2.4f, -0.4f, -3.5f),
+        glm::vec3(-1.7f, 3.0f, -7.5f),
+        glm::vec3( 1.3f, -2.0f, -2.5f),
+        glm::vec3( 1.5f, 2.0f, -2.5f),
+        glm::vec3( 1.5f, 0.2f, -1.5f),
+        glm::vec3(-1.3f, 1.0f, -1.5f),
+    };
+
     // 윈도우 초기화 수행
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     // Z buffer 활성화
@@ -151,16 +165,22 @@ void Context::Render(){
 
     // 큐브 회전을 위한 새로운 MVP 행렬
     auto projection = glm::perspective(glm::radians(45.0f),
-      (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT, 0.01f, 10.0f);
+      (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT, 0.01f, 20.0f);
     auto view = glm::translate(glm::mat4(1.0f),
         glm::vec3(0.0f, 0.0f, -3.0f));
-    auto model = glm::rotate(glm::mat4(1.0f),
-        glm::radians((float)glfwGetTime() * 120.0f), // glfwGetTime()을 이용해서 회전 각을 변경해준다.
-        glm::vec3(1.0f, 0.5f, 0.0f));
-    auto transform = projection * view * model;
-    m_program->SetUniform("transform", transform);
 
-    // 화면에 그리는 코드
-    // 그리는 방식, 정점 개수, 인덱스 데이터 타입, 오프셋을 지정
-    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+    // 큐브마다 서로 위치, 회전을 다르게 한다.
+    for (size_t i = 0; i < cubePositions.size(); i++){
+        auto& pos = cubePositions[i];
+        // 정해진 위치로 이동
+        auto model = glm::translate(glm::mat4(1.0f), pos);
+        model = glm::rotate(model,
+            glm::radians((float)glfwGetTime() * 120.0f + 20.0f * (float)i), // glfwGetTime()을 이용해서 회전 각을 변경해준다.
+            glm::vec3(1.0f, 0.5f, 0.0f));
+        auto transform = projection * view * model;
+        m_program->SetUniform("transform", transform);
+        // 화면에 그리는 코드
+        // 그리는 방식, 정점 개수, 인덱스 데이터 타입, 오프셋을 지정
+        glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+    }
 }
