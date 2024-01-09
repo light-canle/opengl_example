@@ -30,6 +30,21 @@ void OnKeyEvent(GLFWwindow* window,
     }
 }
 
+// 마우스 이동 이벤트 처리
+void OnCursorPos(GLFWwindow* window, double x, double y){
+    auto context = (Context*)glfwGetWindowUserPointer(window);
+    // 마우스 이동 처리
+    context->MouseMove(x, y);
+}
+
+// 마우스 클릭 이벤트 처리
+void OnMouseButton(GLFWwindow* window, int button, int action, int modifier) {
+  auto context = (Context*)glfwGetWindowUserPointer(window);
+  double x, y;
+  glfwGetCursorPos(window, &x, &y);
+  context->MouseButton(button, action, x, y);
+}
+
 int main(int argc, const char **argv){
     SPDLOG_INFO("Start Program");
 
@@ -86,6 +101,10 @@ int main(int argc, const char **argv){
     glfwSetFramebufferSizeCallback(window, OnFramebufferSizeChange);
     // 키가 눌렸을 때 실행할 함수
     glfwSetKeyCallback(window, OnKeyEvent);
+    // 마우스가 이동했을 때 실행할 함수
+    glfwSetCursorPosCallback(window, OnCursorPos);
+    // 마우스를 클릭했을 때 실행할 함수
+    glfwSetMouseButtonCallback(window, OnMouseButton);
 
     // glfw 루프 실행, 윈도우 close 버튼을 누르면 정상 종료
     SPDLOG_INFO("Start main loop");

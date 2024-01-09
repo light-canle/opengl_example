@@ -10,6 +10,9 @@ ContextUPtr Context::Create() {
 
 // 입력 처리(카메라 이동)
 void Context::ProcessInput(GLFWwindow* window) {
+    // 마우스 오른쪽 클릭을 유지한 상태에서만 이동
+    if (!m_cameraControl)
+        return;
     // 카메라 앞/뒤 이동
     const float cameraSpeed = 0.01f;
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
@@ -31,6 +34,46 @@ void Context::ProcessInput(GLFWwindow* window) {
         m_cameraPos += cameraSpeed * cameraUp;
     if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
         m_cameraPos -= cameraSpeed * cameraUp;
+}
+
+// 마우스 입력(카메라 방향)
+void Context::MouseMove(double x, double y) {
+    // 마우스 오른쪽 클릭을 유지한 상태에서만 이동
+    if (!m_cameraControl)
+        return;
+    // 현재 위치 구함
+    auto pos = glm::vec2((float)x, (float)y);
+    auto deltaPos = pos - m_prevMousePos;
+
+    const float cameraRotSpeed = 0.8f;
+    // 카메라 좌우 각
+    m_cameraYaw -= deltaPos.x * cameraRotSpeed;
+    // 카메라 상하 값
+    m_cameraPitch -= deltaPos.y * cameraRotSpeed;
+
+    // 카메라 각도의 상한과 하한을 설정
+    if (m_cameraYaw < 0.0f)   m_cameraYaw += 360.0f;
+    if (m_cameraYaw > 360.0f) m_cameraYaw -= 360.0f;
+
+    if (m_cameraPitch > 89.0f)  m_cameraPitch = 89.0f;
+    if (m_cameraPitch < -89.0f) m_cameraPitch = -89.0f;
+
+    // 이전 위치 저장
+    m_prevMousePos = pos;
+}
+
+// 마우스 키 입력
+void Context::MouseButton(int button, int action, double x, double y) {
+    if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+        if (action == GLFW_PRESS) {
+            // 마우스 조작 시작 시점에 현재 마우스 커서 위치 저장
+            m_prevMousePos = glm::vec2((float)x, (float)y);
+            m_cameraControl = true;
+        }
+        else if (action == GLFW_RELEASE) {
+            m_cameraControl = false;
+        }
+    }
 }
 
 bool Context::Init() {
@@ -193,6 +236,12 @@ void Context::Render(){
     
     // 프로그램 사용
     m_program->Use();
+
+    // 카메라의 front(바라보는 방향)를 계산
+    // (0, 0, -1) 벡터(w = 0)를 yaw, pitch 값에 따라 회전
+    m_cameraFront = glm::rotate(glm::mat4(1.0f), glm::radians(m_cameraYaw), glm::vec3(0.0f, 1.0f, 0.0f)) * 
+                    glm::rotate(glm::mat4(1.0f), glm::radians(m_cameraPitch), glm::vec3(1.0f, 0.0f, 0.0f)) * 
+                    glm::vec4(0.0f, 0.0f, -1.0f, 0.0f);
 
     // 큐브 회전을 위한 새로운 MVP 행렬
     // 화각(FOV), 종횡비(aspect ratio), near~far 설정
