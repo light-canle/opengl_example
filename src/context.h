@@ -16,7 +16,11 @@ public:
     // 생성 함수
     static ContextUPtr Create();
     // 렌더링 함수
-    void Render();    
+    void Render();
+    // 입력 처리 함수
+    void ProcessInput(GLFWwindow* window);
+    // 새로운 화면 크기로 창 재설정
+    void Reshape(int width, int height);
 private:
     Context() {}
     // 초기화 함수
@@ -33,6 +37,15 @@ private:
     // Texture 오브젝트
     TextureUPtr m_texture;
     TextureUPtr m_texture2;
+
+    // camera parameter
+    glm::vec3 m_cameraPos { glm::vec3(0.0f, 0.0f, 3.0f) }; // p = e 카메라 위치 벡터
+    glm::vec3 m_cameraFront { glm::vec3(0.0f, 0.0f, -1.0f) }; // 카메라가 보고 있는 방향
+    glm::vec3 m_cameraUp { glm::vec3(0.0f, 1.0f, 0.0f) }; // u 벡터(up 벡터)
+
+    // 현재 화면 크기
+    int m_width {WINDOW_WIDTH};
+    int m_height {WINDOW_HEIGHT};
 };
 
 #endif

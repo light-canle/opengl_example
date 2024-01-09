@@ -8,6 +8,31 @@ ContextUPtr Context::Create() {
     return std::move(context);
 }
 
+// 입력 처리(카메라 이동)
+void Context::ProcessInput(GLFWwindow* window) {
+    // 카메라 앞/뒤 이동
+    const float cameraSpeed = 0.01f;
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+        m_cameraPos += cameraSpeed * m_cameraFront;
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        m_cameraPos -= cameraSpeed * m_cameraFront;
+
+    // 카메라 좌우 이동
+    // 카메라 오른쪽 방향은 up 벡터와 -front 벡터의 외적이다.
+    auto cameraRight = glm::normalize(glm::cross(m_cameraUp, -m_cameraFront)); 
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        m_cameraPos += cameraSpeed * cameraRight;
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        m_cameraPos -= cameraSpeed * cameraRight;    
+
+    // 카메라 상하 이동
+    auto cameraUp = glm::normalize(glm::cross(-m_cameraFront, cameraRight));
+    if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
+        m_cameraPos += cameraSpeed * cameraUp;
+    if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
+        m_cameraPos -= cameraSpeed * cameraUp;
+}
+
 bool Context::Init() {
     // 정점 데이터
     float vertices[] = {
@@ -117,16 +142,6 @@ bool Context::Init() {
     m_program->SetUniform("tex", 0);
     m_program->SetUniform("tex2", 1);
 
-    // x축으로 -55도 회전
-    auto model = glm::rotate(glm::mat4(1.0f), glm::radians(-55.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-    // 카메라는 원점으로부터 z축 방향으로 -3만큼 떨어짐
-    auto view = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -3.0f));
-    // 종횡비 960:540, 세로화각 45도의 원근 투영
-    auto projection = glm::perspective(glm::radians(45.0f), (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT, 0.01f, 100.0f);
-    auto transform = projection * view * model; // (MVP matrix) 계산
-    // 변환 행렬을 vertex shader에 전달
-    m_program->SetUniform("transform", transform);
-
     return true;
 }
 
@@ -182,17 +197,10 @@ void Context::Render(){
     // 큐브 회전을 위한 새로운 MVP 행렬
     // 화각(FOV), 종횡비(aspect ratio), near~far 설정
     auto projection = glm::perspective(glm::radians(45.0f),
-      (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT, 0.01f, 100.0f);
+      (float)m_width / (float)m_height, 0.01f, 100.0f);
 
-    // 반지름이 10인 원 궤도를 4초의 주기로 회전하는 카메라
-    float angle = (float)glfwGetTime() * glm::pi<float>() * 0.5f;
-    auto x = sinf(angle) * 10.0f;
-    auto z = cosf(angle) * 10.0f;
-    auto cameraPos = glm::vec3(x, 0.0f, z); // p = e 카메라 위치 벡터
-    auto cameraTarget = glm::vec3(0.0f, 0.0f, 0.0f); // 카메라의 타겟 위치를 나타내는 t벡터
-    auto cameraUp = glm::vec3(0.0f, 1.0f, 0.0f); // u 벡터(up 벡터)
     // 카메라의 위치, 타겟 위치를 이용한 view 행렬 계산
-    auto view = glm::lookAt(cameraPos, cameraTarget, cameraUp);
+    auto view = glm::lookAt(m_cameraPos, m_cameraFront + m_cameraPos, m_cameraUp);
 
     // 큐브마다 서로 위치, 회전을 다르게 한다.
     for (size_t i = 0; i < cubePositions.size(); i++){
@@ -208,4 +216,10 @@ void Context::Render(){
         // 그리는 방식, 정점 개수, 인덱스 데이터 타입, 오프셋을 지정
         glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
     }
+}
+
+void Context::Reshape(int width, int height) {
+    m_width = width;
+    m_height = height;
+    glViewport(0, 0, width, height);
 }

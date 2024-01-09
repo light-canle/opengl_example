@@ -7,8 +7,9 @@
 // 창의 크기가 바뀌는 이벤트 처리
 void OnFramebufferSizeChange(GLFWwindow* window, int width, int height) {
     SPDLOG_INFO("framebuffer size changed: ({} x {})", width, height);
+    auto context = (Context*)glfwGetWindowUserPointer(window);
     // 그림을 그릴 화면의 위치, 크기를 지정
-    glViewport(0, 0, width, height);
+    context->Reshape(width, height);
 }
 
 // 키 이벤트 처리
@@ -77,7 +78,8 @@ int main(int argc, const char **argv){
         glfwTerminate();
         return -1;
     }
-
+    // 전역 함수에서 context에 접근하기 위해 user 포인터 설정
+    glfwSetWindowUserPointer(window, context.get());
     // 호출할 콜백 함수 지정
     OnFramebufferSizeChange(window, WINDOW_WIDTH, WINDOW_HEIGHT); // 창 크기 지정
     // 프레임 버퍼(창)의 크기가 바뀔 때 실행할 함수
@@ -89,10 +91,10 @@ int main(int argc, const char **argv){
     SPDLOG_INFO("Start main loop");
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents(); // 키보드, 마우스 등 각종 이벤트 수집
-
+        // 키 입력 처리
+        context->ProcessInput(window);
         // 렌더링 
         context->Render();
-        
         // 프론트/백 버퍼 교체
         glfwSwapBuffers(window);
     }
