@@ -122,7 +122,7 @@ bool Context::Init() {
     // 카메라는 원점으로부터 z축 방향으로 -3만큼 떨어짐
     auto view = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -3.0f));
     // 종횡비 960:540, 세로화각 45도의 원근 투영
-    auto projection = glm::perspective(glm::radians(45.0f), (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT, 0.01f, 20.0f);
+    auto projection = glm::perspective(glm::radians(45.0f), (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT, 0.01f, 100.0f);
     auto transform = projection * view * model; // (MVP matrix) 계산
     // 변환 행렬을 vertex shader에 전달
     m_program->SetUniform("transform", transform);
@@ -138,6 +138,22 @@ bool Context::Init() {
 // auto loc = glGetUniformLocation(m_program->Get(), "color");
 // 해당 위치에 값을 넣음(color는 vec4이다.)
 // glUniform4f(loc, 1.0f, 1.0f, 0.0f, 1.0f);
+
+/*
+// lookAt 함수는 아래와 같이 카메라 행렬의 역행렬을 계산해준다.
+auto cameraZ = glm::normalize(cameraPos - cameraTarget); // 카메라 z방향은 e - t 벡터의 방향이다.
+auto cameraX = glm::normalize(glm::cross(cameraUp, cameraZ)); // 카메라 x 방향은 up 벡터와 z방향의 외적이다.
+auto cameraY = glm::cross(cameraZ, cameraX); // 카메라 y방향은 z방향과 x방향의 외적이다.
+
+// 구한 벡터들로 카메라 행렬을 구함
+auto cameraMat = glm::mat4(
+    glm::vec4(cameraX, 0.0f),
+    glm::vec4(cameraY, 0.0f),
+    glm::vec4(cameraZ, 0.0f),
+    glm::vec4(cameraPos, 1.0f));
+
+auto view = glm::inverse(cameraMat); // view 행렬은 카메라 행렬의 역행렬이다.
+*/
 
 // 렌더링 담당 함수
 void Context::Render(){
@@ -164,10 +180,19 @@ void Context::Render(){
     m_program->Use();
 
     // 큐브 회전을 위한 새로운 MVP 행렬
+    // 화각(FOV), 종횡비(aspect ratio), near~far 설정
     auto projection = glm::perspective(glm::radians(45.0f),
-      (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT, 0.01f, 20.0f);
-    auto view = glm::translate(glm::mat4(1.0f),
-        glm::vec3(0.0f, 0.0f, -3.0f));
+      (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT, 0.01f, 100.0f);
+
+    // 반지름이 10인 원 궤도를 4초의 주기로 회전하는 카메라
+    float angle = (float)glfwGetTime() * glm::pi<float>() * 0.5f;
+    auto x = sinf(angle) * 10.0f;
+    auto z = cosf(angle) * 10.0f;
+    auto cameraPos = glm::vec3(x, 0.0f, z); // p = e 카메라 위치 벡터
+    auto cameraTarget = glm::vec3(0.0f, 0.0f, 0.0f); // 카메라의 타겟 위치를 나타내는 t벡터
+    auto cameraUp = glm::vec3(0.0f, 1.0f, 0.0f); // u 벡터(up 벡터)
+    // 카메라의 위치, 타겟 위치를 이용한 view 행렬 계산
+    auto view = glm::lookAt(cameraPos, cameraTarget, cameraUp);
 
     // 큐브마다 서로 위치, 회전을 다르게 한다.
     for (size_t i = 0; i < cubePositions.size(); i++){
