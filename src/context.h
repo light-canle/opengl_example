@@ -54,6 +54,9 @@ private:
     // 현재 화면 크기
     int m_width {WINDOW_WIDTH};
     int m_height {WINDOW_HEIGHT};
+
+    // clear color(배경 색상)
+    glm::vec4 m_clearColor { glm::vec4(0.1f, 0.2f, 0.3f, 0.0f) };
 };
 
 #endif

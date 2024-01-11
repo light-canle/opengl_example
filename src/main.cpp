@@ -3,6 +3,9 @@
 #include <spdlog/spdlog.h>
 #include <glad/glad.h> // glfw 추가 이전에 쓸 것
 #include <GLFW/glfw3.h>
+#include <imgui_impl_glfw.h> // imgui
+#include <imgui_impl_opengl3.h>
+
 
 // 창의 크기가 바뀌는 이벤트 처리
 void OnFramebufferSizeChange(GLFWwindow* window, int width, int height) {
@@ -15,6 +18,8 @@ void OnFramebufferSizeChange(GLFWwindow* window, int width, int height) {
 // 키 이벤트 처리
 void OnKeyEvent(GLFWwindow* window,
     int key, int scancode, int action, int mods) {
+    // imgui 키 이벤트 처리
+    ImGui_ImplGlfw_KeyCallback(window, key, scancode, action, mods);
     // 누른 키의 정보를 출력
     SPDLOG_INFO("key: {}, scancode: {}, action: {}, mods: {}{}{}",
         key, scancode,
@@ -39,10 +44,21 @@ void OnCursorPos(GLFWwindow* window, double x, double y){
 
 // 마우스 클릭 이벤트 처리
 void OnMouseButton(GLFWwindow* window, int button, int action, int modifier) {
-  auto context = (Context*)glfwGetWindowUserPointer(window);
-  double x, y;
-  glfwGetCursorPos(window, &x, &y);
-  context->MouseButton(button, action, x, y);
+    // imgui용 마우스 클릭 이벤트
+    ImGui_ImplGlfw_MouseButtonCallback(window, button, action, modifier);
+    // glfw용 마우스 클릭 이벤트
+    auto context = (Context*)glfwGetWindowUserPointer(window);
+    double x, y;
+    glfwGetCursorPos(window, &x, &y);
+    context->MouseButton(button, action, x, y);
+}
+// imgui에 글자 입력을 했을 때
+void OnCharEvent(GLFWwindow* window, unsigned int ch) {
+    ImGui_ImplGlfw_CharCallback(window, ch);
+}
+// imgui를 스크롤 했을 때
+void OnScroll(GLFWwindow* window, double xoffset, double yoffset) {
+    ImGui_ImplGlfw_ScrollCallback(window, xoffset, yoffset);
 }
 
 int main(int argc, const char **argv){
@@ -85,6 +101,15 @@ int main(int argc, const char **argv){
     auto glVersion = reinterpret_cast<const char*>(glGetString(GL_VERSION));
     SPDLOG_INFO("OpenGL context version: {}", glVersion);
 
+    // imgui 초기화
+    auto imguiContext = ImGui::CreateContext();
+    ImGui::SetCurrentContext(imguiContext);
+    // opengl용 초기화
+    ImGui_ImplGlfw_InitForOpenGL(window, false); // callback 수동 설정을 위해 false 지정
+    ImGui_ImplOpenGL3_Init();
+    ImGui_ImplOpenGL3_CreateFontsTexture();
+    ImGui_ImplOpenGL3_CreateDeviceObjects();
+
     // context로 쉐이더와 프로그램 동시에 생성
     auto context = Context::Create();
     // 생성 실패한 경우
@@ -101,24 +126,40 @@ int main(int argc, const char **argv){
     glfwSetFramebufferSizeCallback(window, OnFramebufferSizeChange);
     // 키가 눌렸을 때 실행할 함수
     glfwSetKeyCallback(window, OnKeyEvent);
+    // 글자가 입력되었을 때 실행할 함수
+    glfwSetCharCallback(window, OnCharEvent);
     // 마우스가 이동했을 때 실행할 함수
     glfwSetCursorPosCallback(window, OnCursorPos);
     // 마우스를 클릭했을 때 실행할 함수
     glfwSetMouseButtonCallback(window, OnMouseButton);
+    // 마우스 스크롤을 했을 때 실행할 함수
+    glfwSetScrollCallback(window, OnScroll);
 
     // glfw 루프 실행, 윈도우 close 버튼을 누르면 정상 종료
     SPDLOG_INFO("Start main loop");
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents(); // 키보드, 마우스 등 각종 이벤트 수집
+        // imgui에게 프레임이 바뀌었음을 전달
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
         // 키 입력 처리
         context->ProcessInput(window);
         // 렌더링 
         context->Render();
+        // opengl 렌더링을 한 후 그 위에 imgui ui를 그림
+        ImGui::Render(); // draw data 리스트를 만듦
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData()); // opengl3으로 그 ui들을 그려냄
         // 프론트/백 버퍼 교체
         glfwSwapBuffers(window);
     }
     // 메모리 해제
     context.reset();
+    // imgui 메모리 해제 - 초기화 순서 반대로 수행
+    ImGui_ImplOpenGL3_DestroyFontsTexture();
+    ImGui_ImplOpenGL3_DestroyDeviceObjects();
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext(imguiContext);
 
     glfwTerminate();
     return 0;

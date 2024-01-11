@@ -1,5 +1,6 @@
 #include "context.h"
 #include "image.h"
+#include <imgui.h>
 
 ContextUPtr Context::Create() {
     auto context = ContextUPtr(new Context());
@@ -215,6 +216,32 @@ auto view = glm::inverse(cameraMat); // view 행렬은 카메라 행렬의 역�
 
 // 렌더링 담당 함수
 void Context::Render(){
+    // imgui
+    if (ImGui::Begin("UI window")) {
+        // 배경 색상
+        if (ImGui::ColorEdit4("background color", glm::value_ptr(m_clearColor))) {
+            glClearColor(m_clearColor.r, m_clearColor.g, m_clearColor.b, m_clearColor.a);
+        }
+        // 메뉴 구분선
+        ImGui::Separator();
+        // 카메라 위치, 회전을 바꾸기 위한 drag
+        ImGui::DragFloat3("camera pos", glm::value_ptr(m_cameraPos), 0.01f);
+        ImGui::DragFloat("camera yaw", &m_cameraYaw, 0.5f, -360.0f, 360.0f);
+        ImGui::DragFloat("camera pitch", &m_cameraPitch, 0.5f, -89.0f, 89.0f);
+        ImGui::Separator();
+        // 카메라 위치 초기화 버튼
+        if (ImGui::Button("reset camera")) {
+            m_cameraYaw = 0.0f;
+            m_cameraPitch = 0.0f;
+            m_cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
+        }
+        // 색상 초기화 버튼
+        if (ImGui::Button("reset color")) {
+            m_clearColor = glm::vec4(0.1f, 0.2f, 0.3f, 0.0f);
+            glClearColor(m_clearColor.r, m_clearColor.g, m_clearColor.b, m_clearColor.a);
+        }
+    }
+    ImGui::End();
     // 서로 다른 큐브들의 위치 리스트
     std::vector<glm::vec3> cubePositions = {
         glm::vec3( 0.0f, 0.0f, 0.0f),
