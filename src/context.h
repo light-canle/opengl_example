@@ -52,13 +52,17 @@ private:
     glm::vec2 m_prevMousePos { glm::vec2(0.0f) }; // 카메라 이전 위치
 
     // 현재 화면 크기
-    int m_width {WINDOW_WIDTH};
-    int m_height {WINDOW_HEIGHT};
+    int m_width { WINDOW_WIDTH };
+    int m_height { WINDOW_HEIGHT };
 
     // clear color(배경 색상)
     glm::vec4 m_clearColor { glm::vec4(0.1f, 0.2f, 0.3f, 0.0f) };
 
-    // light color(조명 색상)
+    // cube animation (큐브의 회전 여부)
+    bool m_animation { true };
+
+    // light pos & color(조명 위치/색상)
+    glm::vec3 m_lightPos { glm::vec3(3.0f, 3.0f, 3.0f) };
     glm::vec3 m_lightColor { glm::vec3(1.0f, 1.0f, 1.0f) };
     glm::vec3 m_objectColor { glm::vec3(1.0f, 0.5f, 0.0f) };
     float m_ambientStrength { 0.1f };

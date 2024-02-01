@@ -79,37 +79,37 @@ void Context::MouseButton(int button, int action, double x, double y) {
 
 bool Context::Init() {
     // 정점 데이터
-    float vertices[] = {
-        // x, y, z(정점 위치), s, t(정점의 텍스쳐 좌표)
-        -0.5f, -0.5f, -0.5f, 0.0f, 0.0f,
-         0.5f, -0.5f, -0.5f, 1.0f, 0.0f,
-         0.5f,  0.5f, -0.5f, 1.0f, 1.0f,
-        -0.5f,  0.5f, -0.5f, 0.0f, 1.0f,
+    float vertices[] = { 
+        // pos.xyz, normal.xyz, texcoord.uv
+        -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f,
+         0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 1.0f, 0.0f,
+         0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f,
+        -0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 0.0f, 1.0f,
 
-        -0.5f, -0.5f,  0.5f, 0.0f, 0.0f,
-         0.5f, -0.5f,  0.5f, 1.0f, 0.0f,
-         0.5f,  0.5f,  0.5f, 1.0f, 1.0f,
-        -0.5f,  0.5f,  0.5f, 0.0f, 1.0f,
+        -0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f,
+         0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f, 1.0f, 0.0f,
+         0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f,
+        -0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f, 0.0f, 1.0f,
 
-        -0.5f,  0.5f,  0.5f, 1.0f, 0.0f,
-        -0.5f,  0.5f, -0.5f, 1.0f, 1.0f,
-        -0.5f, -0.5f, -0.5f, 0.0f, 1.0f,
-        -0.5f, -0.5f,  0.5f, 0.0f, 0.0f,
+        -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f,
+        -0.5f,  0.5f, -0.5f, -1.0f,  0.0f,  0.0f, 1.0f, 1.0f,
+        -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f,
+        -0.5f, -0.5f,  0.5f, -1.0f,  0.0f,  0.0f, 0.0f, 0.0f,
 
-        0.5f,  0.5f,  0.5f, 1.0f, 0.0f,
-        0.5f,  0.5f, -0.5f, 1.0f, 1.0f,
-        0.5f, -0.5f, -0.5f, 0.0f, 1.0f,
-        0.5f, -0.5f,  0.5f, 0.0f, 0.0f,
+         0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f,
+         0.5f,  0.5f, -0.5f,  1.0f,  0.0f,  0.0f, 1.0f, 1.0f,
+         0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f,
+         0.5f, -0.5f,  0.5f,  1.0f,  0.0f,  0.0f, 0.0f, 0.0f,
 
-        -0.5f, -0.5f, -0.5f, 0.0f, 1.0f,
-         0.5f, -0.5f, -0.5f, 1.0f, 1.0f,
-         0.5f, -0.5f,  0.5f, 1.0f, 0.0f,
-        -0.5f, -0.5f,  0.5f, 0.0f, 0.0f,
+        -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f,
+         0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f, 1.0f, 1.0f,
+         0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f,
+        -0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f, 0.0f, 0.0f,
 
-        -0.5f,  0.5f, -0.5f, 0.0f, 1.0f,
-         0.5f,  0.5f, -0.5f, 1.0f, 1.0f,
-         0.5f,  0.5f,  0.5f, 1.0f, 0.0f,
-        -0.5f,  0.5f,  0.5f, 0.0f, 0.0f,
+        -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f,
+         0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f, 1.0f, 1.0f,
+         0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f,
+        -0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f, 0.0f, 0.0f,
     };
 
     // 인덱스 데이터
@@ -127,12 +127,13 @@ bool Context::Init() {
 
     // 2. VBO 바인딩 / 정점 데이터 복사
     // 마지막 인자에 곱해지는 값은 정점 리스트의 데이터 크기이다.
-    m_vertexBuffer = Buffer::CreateWithData(GL_ARRAY_BUFFER, GL_STATIC_DRAW, vertices, sizeof(float) * 120);
+    m_vertexBuffer = Buffer::CreateWithData(GL_ARRAY_BUFFER, GL_STATIC_DRAW, vertices, sizeof(float) * 8 * 6 * 4);
 
     // 3. VAO에서 정점 데이터의 속성을 지정
-    // 5번째 인자에 곱해지는 값은 한 정점 당 데이터 크기이다.(지금은 위치 3개, 텍스쳐 2개로 총 5개)
-    m_vertexLayout->SetAttrib(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 5, 0); // 위치(0-2)
-    m_vertexLayout->SetAttrib(2, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 5, sizeof(float) * 3); // 텍스쳐 좌표(3-4)
+    // 5번째 인자에 곱해지는 값은 한 정점 당 데이터 크기이다.(지금은 위치 3개, 법선 3개, 텍스쳐 2개로 총 8개)
+    m_vertexLayout->SetAttrib(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 8, 0); // 위치(0~2)
+    m_vertexLayout->SetAttrib(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 8, sizeof(float) * 3); // 법선 벡터(3~5)
+    m_vertexLayout->SetAttrib(2, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 8, sizeof(float) * 6); // 텍스쳐 좌표(6~7)
 
     // 4. EBO 바인딩
     // 4번째 인자에 곱해지는 수는 인덱스 배열의 길이이다.
@@ -235,17 +236,20 @@ void Context::Render(){
             m_cameraPitch = 0.0f;
             m_cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
         }
-        // 색상 초기화 버튼
-        if (ImGui::Button("reset color")) {
+        // 배경 색상 초기화 버튼
+        if (ImGui::Button("reset background")) {
             m_clearColor = glm::vec4(0.1f, 0.2f, 0.3f, 0.0f);
             glClearColor(m_clearColor.r, m_clearColor.g, m_clearColor.b, m_clearColor.a);
         }
         // 조명
-        if (ImGui::CollapsingHeader("light")) {
+        if (ImGui::CollapsingHeader("light", ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::DragFloat3("light pos", glm::value_ptr(m_lightPos), 0.01f);
             ImGui::ColorEdit3("light color", glm::value_ptr(m_lightColor));
             ImGui::ColorEdit3("object color", glm::value_ptr(m_objectColor));
             ImGui::SliderFloat("ambient strength", &m_ambientStrength, 0.0f, 1.0f);
         }
+        // 큐브 회전 여부
+        ImGui::Checkbox("animation", &m_animation);
     }
     ImGui::End();
     // 서로 다른 큐브들의 위치 리스트
@@ -266,14 +270,6 @@ void Context::Render(){
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     // Z buffer 활성화
     glEnable(GL_DEPTH_TEST);
-    
-    // 프로그램 사용
-    m_program->Use();
-
-    // 조명 관련 수치들을 uniform으로 넘김
-    m_program->SetUniform("lightColor", m_lightColor);
-    m_program->SetUniform("objectColor", m_objectColor);
-    m_program->SetUniform("ambientStrength", m_ambientStrength);
 
     // 카메라의 front(바라보는 방향)를 계산
     // (0, 0, -1) 벡터(w = 0)를 yaw, pitch 값에 따라 회전
@@ -289,16 +285,43 @@ void Context::Render(){
     // 카메라의 위치, 타겟 위치를 이용한 view 행렬 계산
     auto view = glm::lookAt(m_cameraPos, m_cameraFront + m_cameraPos, m_cameraUp);
 
+    /* view matrix를 구했으므로 이제 큐브들을 배치한다. */
+
+    // 조명 역할을 해주는 큐브
+    // 빛의 위치
+    auto lightModelTransform =
+        glm::translate(glm::mat4(1.0), m_lightPos) *
+        glm::scale(glm::mat4(1.0f), glm::vec3(0.1f));
+    m_program->Use();
+    m_program->SetUniform("lightPos", m_lightPos);
+    m_program->SetUniform("lightColor", glm::vec3(1.0f, 1.0f, 1.0f));
+    m_program->SetUniform("objectColor", glm::vec3(1.0f, 1.0f, 1.0f));
+    m_program->SetUniform("ambientStrength", 1.0f);
+    m_program->SetUniform("transform", projection * view * lightModelTransform);
+    m_program->SetUniform("modelTransform", lightModelTransform);
+    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+
+    // 프로그램 사용
+    m_program->Use();
+
+    // 조명 관련 수치들을 uniform으로 넘김
+    m_program->SetUniform("lightPos", m_lightPos);
+    m_program->SetUniform("lightColor", m_lightColor);
+    m_program->SetUniform("objectColor", m_objectColor);
+    m_program->SetUniform("ambientStrength", m_ambientStrength);
+
     // 큐브마다 서로 위치, 회전을 다르게 한다.
     for (size_t i = 0; i < cubePositions.size(); i++){
         auto& pos = cubePositions[i];
         // 정해진 위치로 이동
         auto model = glm::translate(glm::mat4(1.0f), pos);
-        model = glm::rotate(model,
-            glm::radians((float)glfwGetTime() * 120.0f + 20.0f * (float)i), // glfwGetTime()을 이용해서 회전 각을 변경해준다.
+        // 회전각 설정
+        model = glm::rotate(model, 
+            glm::radians((m_animation ? (float)glfwGetTime() : 0.0f) * 120.0f + 20.0f * (float)i),
             glm::vec3(1.0f, 0.5f, 0.0f));
         auto transform = projection * view * model;
         m_program->SetUniform("transform", transform);
+        m_program->SetUniform("modelTransform", model);
         // 화면에 그리는 코드
         // 그리는 방식, 정점 개수, 인덱스 데이터 타입, 오프셋을 지정
         glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
