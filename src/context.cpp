@@ -139,8 +139,8 @@ bool Context::Init() {
     m_indexBuffer = Buffer::CreateWithData(GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW, indices, sizeof(uint32_t) * 36);
 
     // 쉐이더 초기화
-    ShaderPtr vertShader = Shader::CreateFromFile("./shader/texture.vert", GL_VERTEX_SHADER);
-    ShaderPtr fragShader = Shader::CreateFromFile("./shader/texture.frag", GL_FRAGMENT_SHADER);
+    ShaderPtr vertShader = Shader::CreateFromFile("./shader/lighting.vert", GL_VERTEX_SHADER);
+    ShaderPtr fragShader = Shader::CreateFromFile("./shader/lighting.frag", GL_FRAGMENT_SHADER);
     // 쉐이더 초기화 실패한 경우
     if (!vertShader || !fragShader)
         return false;
@@ -240,6 +240,12 @@ void Context::Render(){
             m_clearColor = glm::vec4(0.1f, 0.2f, 0.3f, 0.0f);
             glClearColor(m_clearColor.r, m_clearColor.g, m_clearColor.b, m_clearColor.a);
         }
+        // 조명
+        if (ImGui::CollapsingHeader("light")) {
+            ImGui::ColorEdit3("light color", glm::value_ptr(m_lightColor));
+            ImGui::ColorEdit3("object color", glm::value_ptr(m_objectColor));
+            ImGui::SliderFloat("ambient strength", &m_ambientStrength, 0.0f, 1.0f);
+        }
     }
     ImGui::End();
     // 서로 다른 큐브들의 위치 리스트
@@ -263,6 +269,11 @@ void Context::Render(){
     
     // 프로그램 사용
     m_program->Use();
+
+    // 조명 관련 수치들을 uniform으로 넘김
+    m_program->SetUniform("lightColor", m_lightColor);
+    m_program->SetUniform("objectColor", m_objectColor);
+    m_program->SetUniform("ambientStrength", m_ambientStrength);
 
     // 카메라의 front(바라보는 방향)를 계산
     // (0, 0, -1) 벡터(w = 0)를 yaw, pitch 값에 따라 회전
