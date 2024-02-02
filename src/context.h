@@ -65,6 +65,9 @@ private:
     // light (조명)
     struct Light {
         glm::vec3 position { glm::vec3(2.0f, 2.0f, 2.0f) };
+        glm::vec3 direction { glm::vec3(-1.0f, -1.0f, -1.0f) };
+        // 단위는 육십분법, 1번째는 inner, 2번째는 outer와 inner의 차이 각도가 들어간다.
+        glm::vec2 cutoff { glm::vec2(20.0f, 5.0f) };
         float distance { 32.0f };
         glm::vec3 ambient { glm::vec3(0.1f, 0.1f, 0.1f) };
         glm::vec3 diffuse { glm::vec3(0.5f, 0.5f, 0.5f) };
