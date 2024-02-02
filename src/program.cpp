@@ -7,6 +7,17 @@ ProgramUPtr Program::Create(const std::vector<ShaderPtr>& shaders) {
     return std::move(program);
 }
 
+ProgramUPtr Program::Create(const std::string& vertShaderFilename, const std::string& fragShaderFilename) {
+    // 쉐이더 초기화
+    ShaderPtr vs = Shader::CreateFromFile(vertShaderFilename, GL_VERTEX_SHADER);
+    ShaderPtr fs = Shader::CreateFromFile(fragShaderFilename, GL_FRAGMENT_SHADER);
+    // 쉐이더 초기화 실패한 경우
+    if (!vs || !fs)
+        return nullptr;
+    // 성공한 경우 두 쉐이더를 링크한 프로그램을 반환
+    return std::move(Create({vs, fs}));
+}
+
 bool Program::Link(const std::vector<ShaderPtr>& shaders) {
     // 프로그램 생성
     m_program = glCreateProgram();
@@ -60,4 +71,9 @@ void Program::SetUniform(const std::string& name, float value) const {
 void Program::SetUniform(const std::string& name, const glm::vec3& value) const {
     auto loc = glGetUniformLocation(m_program, name.c_str());
     glUniform3fv(loc, 1, glm::value_ptr(value));
+}
+
+void Program::SetUniform(const std::string& name, const glm::vec4& value) const {
+    auto loc = glGetUniformLocation(m_program, name.c_str());
+    glUniform4fv(loc, 1, glm::value_ptr(value));
 }

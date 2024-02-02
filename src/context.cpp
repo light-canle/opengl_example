@@ -139,21 +139,14 @@ bool Context::Init() {
     // 4번째 인자에 곱해지는 수는 인덱스 배열의 길이이다.
     m_indexBuffer = Buffer::CreateWithData(GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW, indices, sizeof(uint32_t) * 36);
 
-    // 쉐이더 초기화
-    ShaderPtr vertShader = Shader::CreateFromFile("./shader/lighting.vert", GL_VERTEX_SHADER);
-    ShaderPtr fragShader = Shader::CreateFromFile("./shader/lighting.frag", GL_FRAGMENT_SHADER);
-    // 쉐이더 초기화 실패한 경우
-    if (!vertShader || !fragShader)
-        return false;
-    // 쉐이더 ID 출력
-    SPDLOG_INFO("vertex shader id: {}", vertShader->Get());
-    SPDLOG_INFO("fragment shader id: {}", fragShader->Get());
-
     // 프로그램 생성/정보 출력
-    m_program = Program::Create({fragShader, vertShader});
+    m_simpleProgram = Program::Create("./shader/simple.vert", "./shader/simple.frag");
+    if (!m_simpleProgram)
+        return false;
+
+    m_program = Program::Create("./shader/lighting.vert", "./shader/lighting.frag");
     if (!m_program)
         return false;
-    SPDLOG_INFO("program id: {}", m_program->Get());
 
     m_program->Use(); // Use 실행
 
@@ -176,6 +169,9 @@ bool Context::Init() {
         return false;
     m_texture2 = Texture::CreateFromImage(image2.get());
     
+    m_material.diffuse = Texture::CreateFromImage(Image::Load("./image/container2.png").get());
+	m_material.specular = Texture::CreateFromImage(Image::Load("./image/container2_specular.png").get());
+
     // 두 텍스쳐를 각각 텍스쳐 슬롯 0, 1번에 넣는다.
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, m_texture->Get());
@@ -250,9 +246,6 @@ void Context::Render(){
         }
         // 재질
         if (ImGui::CollapsingHeader("material", ImGuiTreeNodeFlags_DefaultOpen)) {
-            ImGui::ColorEdit3("m.ambient", glm::value_ptr(m_material.ambient));
-            ImGui::ColorEdit3("m.diffuse", glm::value_ptr(m_material.diffuse));
-            ImGui::ColorEdit3("m.specular", glm::value_ptr(m_material.specular));
             ImGui::DragFloat("m.shininess", &m_material.shininess, 1.0f, 1.0f, 256.0f);
         }
         // 큐브 회전 여부
@@ -299,12 +292,9 @@ void Context::Render(){
     auto lightModelTransform =
         glm::translate(glm::mat4(1.0), m_light.position) *
         glm::scale(glm::mat4(1.0f), glm::vec3(0.1f));
-    m_program->Use();
-    m_program->SetUniform("light.position", m_light.position);
-    m_program->SetUniform("light.ambient", m_light.diffuse);
-    m_program->SetUniform("material.ambient", m_light.diffuse);
-    m_program->SetUniform("transform", projection * view * lightModelTransform);
-    m_program->SetUniform("modelTransform", lightModelTransform);
+    m_simpleProgram->Use();
+    m_simpleProgram->SetUniform("color", glm::vec4(m_light.ambient + m_light.diffuse, 1.0f));
+    m_simpleProgram->SetUniform("transform", projection * view * lightModelTransform);
     glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
 
     // 프로그램 사용
@@ -312,14 +302,19 @@ void Context::Render(){
 
     // 조명 관련 수치들을 uniform으로 넘김
     m_program->SetUniform("viewPos", m_cameraPos);
-    m_program->SetUniform("light,position", m_light.position);
+    m_program->SetUniform("light.position", m_light.position);
     m_program->SetUniform("light.ambient", m_light.ambient);
     m_program->SetUniform("light.diffuse", m_light.diffuse);
     m_program->SetUniform("light.specular", m_light.specular);
-    m_program->SetUniform("material.ambient", m_material.ambient);
-    m_program->SetUniform("material.diffuse", m_material.diffuse);
+    m_program->SetUniform("material.diffuse", 0);
     m_program->SetUniform("material.shininess", m_material.shininess);
-    m_program->SetUniform("material.specular", m_material.specular);
+    m_program->SetUniform("material.specular", 1);
+
+    // 큐브의 텍스쳐를 가져옴
+    glActiveTexture(GL_TEXTURE0);
+    m_material.diffuse->Bind();
+    glActiveTexture(GL_TEXTURE1);
+    m_material.specular->Bind();
 
     // 큐브마다 서로 위치, 회전을 다르게 한다.
     for (size_t i = 0; i < cubePositions.size(); i++){
