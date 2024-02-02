@@ -280,6 +280,11 @@ void Context::Render(){
                     glm::rotate(glm::mat4(1.0f), glm::radians(m_cameraPitch), glm::vec3(1.0f, 0.0f, 0.0f)) * 
                     glm::vec4(0.0f, 0.0f, -1.0f, 0.0f);
 
+    // 손전등 효과를 위한 추가 코드
+    // spot light의 위치와 방향을 카메라와 일치시킨다.
+    m_light.position = m_cameraPos;
+    m_light.direction = m_cameraFront;
+
     // 큐브 회전을 위한 새로운 MVP 행렬
     // 화각(FOV), 종횡비(aspect ratio), near~far 설정
     auto projection = glm::perspective(glm::radians(45.0f),
@@ -292,13 +297,13 @@ void Context::Render(){
 
     // 조명 역할을 해주는 큐브
     // 빛의 위치
-    auto lightModelTransform =
-        glm::translate(glm::mat4(1.0), m_light.position) *
-        glm::scale(glm::mat4(1.0f), glm::vec3(0.1f));
-    m_simpleProgram->Use();
-    m_simpleProgram->SetUniform("color", glm::vec4(m_light.ambient + m_light.diffuse, 1.0f));
-    m_simpleProgram->SetUniform("transform", projection * view * lightModelTransform);
-    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+    // auto lightModelTransform =
+    //     glm::translate(glm::mat4(1.0), m_light.position) *
+    //     glm::scale(glm::mat4(1.0f), glm::vec3(0.1f));
+    // m_simpleProgram->Use();
+    // m_simpleProgram->SetUniform("color", glm::vec4(m_light.ambient + m_light.diffuse, 1.0f));
+    // m_simpleProgram->SetUniform("transform", projection * view * lightModelTransform);
+    // glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
     
     // 프로그램 사용
     m_program->Use();
