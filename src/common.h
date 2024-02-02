@@ -19,4 +19,8 @@ using klassName ## WPtr = std::weak_ptr<klassName>;
 
 std::optional<std::string> LoadTextFile(const std::string& filename);
 
+// 거리에 따라 세 감쇠 상수를 근사해주는 함수
+// source : https://www.youtube.com/watch?v=JAW3MGlfDwY&list=PLvNHCGtd4kh_cYLKMP_E-jwF3YKpDP4hf&index=23
+glm::vec3 GetAttenuationCoeff(float distance);
+
 #endif // __COMMON_H__

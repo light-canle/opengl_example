@@ -1,4 +1,4 @@
-// directional light를 위한 frag shader
+// point light를 위한 frag shader
 #version 330 core
 in vec3 normal;
 in vec2 texCoord;
@@ -9,7 +9,8 @@ uniform vec3 viewPos; // 카메라가 보는 위치
 
 // 빛 정보를 담는 구조체
 struct Light {
-    vec3 direction; // 빛의 방향
+    vec3 position; // 빛의 위치
+    vec3 attenuation; // 빛의 감쇠 : 세 상수 (k_c, k_l, k_q)로 구성된 vec3
     vec3 ambient;
     vec3 diffuse;
     vec3 specular;
@@ -30,7 +31,12 @@ void main() {
     vec3 texColor = texture2D(material.diffuse, texCoord).xyz;
     vec3 ambient = texColor * light.ambient;
     // 분산광
-    vec3 lightDir = normalize(-light.direction); // 빛의 방향
+    float dist = length(light.position - position); // 빛과 물체 사이 거리
+    vec3 distPoly = vec3(1.0, dist, dist*dist); // 상수항, 1차항, 2차항
+    // 1.0 / (1.0 * k_c + d * k_l + d^2 + k_q)
+    float attenuation = 1.0 / dot(distPoly, light.attenuation); // 거리에 따른 빛의 감쇠 공식
+    vec3 lightDir = (light.position - position) / dist; // 빛의 방향
+
     vec3 pixelNorm = normalize(normal);
     float diff = max(dot(pixelNorm, lightDir), 0.0);
     vec3 diffuse = diff * texColor * light.diffuse;
@@ -41,6 +47,6 @@ void main() {
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
     vec3 specular = spec * specColor * light.specular;
     // 최종 색깔
-    vec3 result = ambient + diffuse + specular;
+    vec3 result = (ambient + diffuse + specular) * attenuation;
     fragColor = vec4(result, 1.0);
 }
