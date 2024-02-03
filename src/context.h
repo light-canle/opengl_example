@@ -7,6 +7,7 @@
 #include "buffer.h"
 #include "vertex_layout.h"
 #include "texture.h"
+#include "mesh.h"
 
 CLASS_PTR(Context)
 CLASS_PTR(Buffer)
@@ -33,12 +34,8 @@ private:
     ProgramUPtr m_program;
     ProgramUPtr m_simpleProgram;
 
-    // VAO 오브젝트
-    VertexLayoutUPtr m_vertexLayout;
-    // VBO 오브젝트
-    BufferUPtr m_vertexBuffer;
-    // EBO 오브젝트
-    BufferUPtr m_indexBuffer;
+    // Mesh
+    MeshUPtr m_box;
     // Texture 오브젝트
     TextureUPtr m_texture;
     TextureUPtr m_texture2;

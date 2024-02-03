@@ -78,66 +78,8 @@ void Context::MouseButton(int button, int action, double x, double y) {
 }
 
 bool Context::Init() {
-    // 정점 데이터
-    float vertices[] = { 
-        // pos.xyz, normal.xyz, texcoord.uv
-        -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f,
-         0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 1.0f, 0.0f,
-         0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f,
-        -0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f, 0.0f, 1.0f,
-
-        -0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f,
-         0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f, 1.0f, 0.0f,
-         0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f,
-        -0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f, 0.0f, 1.0f,
-
-        -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f,
-        -0.5f,  0.5f, -0.5f, -1.0f,  0.0f,  0.0f, 1.0f, 1.0f,
-        -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f,
-        -0.5f, -0.5f,  0.5f, -1.0f,  0.0f,  0.0f, 0.0f, 0.0f,
-
-         0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f,
-         0.5f,  0.5f, -0.5f,  1.0f,  0.0f,  0.0f, 1.0f, 1.0f,
-         0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f,
-         0.5f, -0.5f,  0.5f,  1.0f,  0.0f,  0.0f, 0.0f, 0.0f,
-
-        -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f,
-         0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f, 1.0f, 1.0f,
-         0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f,
-        -0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f, 0.0f, 0.0f,
-
-        -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f,
-         0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f, 1.0f, 1.0f,
-         0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f,
-        -0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f, 0.0f, 0.0f,
-    };
-
-    // 인덱스 데이터
-    uint32_t indices[] = {
-         0,  2,  1,  2,  0,  3,
-         4,  5,  6,  6,  7,  4,
-         8,  9, 10, 10, 11,  8,
-        12, 14, 13, 14, 12, 15,
-        16, 17, 18, 18, 19, 16,
-        20, 22, 21, 22, 20, 23,
-    };
-
-    // 1. VAO 바인딩 - VBO 바인딩 전에 함(그래야 VAO에 대응하는 VBO가 지정된다.)
-    m_vertexLayout = VertexLayout::Create();
-
-    // 2. VBO 바인딩 / 정점 데이터 복사
-    // 마지막 인자에 곱해지는 값은 정점 리스트의 데이터 크기이다.
-    m_vertexBuffer = Buffer::CreateWithData(GL_ARRAY_BUFFER, GL_STATIC_DRAW, vertices, sizeof(float) * 8 * 6 * 4);
-
-    // 3. VAO에서 정점 데이터의 속성을 지정
-    // 5번째 인자에 곱해지는 값은 한 정점 당 데이터 크기이다.(지금은 위치 3개, 법선 3개, 텍스쳐 2개로 총 8개)
-    m_vertexLayout->SetAttrib(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 8, 0); // 위치(0~2)
-    m_vertexLayout->SetAttrib(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 8, sizeof(float) * 3); // 법선 벡터(3~5)
-    m_vertexLayout->SetAttrib(2, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 8, sizeof(float) * 6); // 텍스쳐 좌표(6~7)
-
-    // 4. EBO 바인딩
-    // 4번째 인자에 곱해지는 수는 인덱스 배열의 길이이다.
-    m_indexBuffer = Buffer::CreateWithData(GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW, indices, sizeof(uint32_t) * 36);
+    // 박스 생성
+    m_box = Mesh::MakeBox();
 
     // 프로그램 생성/정보 출력
     m_simpleProgram = Program::Create("./shader/simple.vert", "./shader/simple.frag");
@@ -282,8 +224,8 @@ void Context::Render(){
 
     // 손전등 효과를 위한 추가 코드
     // spot light의 위치와 방향을 카메라와 일치시킨다.
-    m_light.position = m_cameraPos;
-    m_light.direction = m_cameraFront;
+    // m_light.position = m_cameraPos;
+    // m_light.direction = m_cameraFront;
 
     // 큐브 회전을 위한 새로운 MVP 행렬
     // 화각(FOV), 종횡비(aspect ratio), near~far 설정
@@ -297,13 +239,13 @@ void Context::Render(){
 
     // 조명 역할을 해주는 큐브
     // 빛의 위치
-    // auto lightModelTransform =
-    //     glm::translate(glm::mat4(1.0), m_light.position) *
-    //     glm::scale(glm::mat4(1.0f), glm::vec3(0.1f));
-    // m_simpleProgram->Use();
-    // m_simpleProgram->SetUniform("color", glm::vec4(m_light.ambient + m_light.diffuse, 1.0f));
-    // m_simpleProgram->SetUniform("transform", projection * view * lightModelTransform);
-    // glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+    auto lightModelTransform =
+        glm::translate(glm::mat4(1.0), m_light.position) *
+        glm::scale(glm::mat4(1.0f), glm::vec3(0.1f));
+    m_simpleProgram->Use();
+    m_simpleProgram->SetUniform("color", glm::vec4(m_light.ambient + m_light.diffuse, 1.0f));
+    m_simpleProgram->SetUniform("transform", projection * view * lightModelTransform);
+    m_box->Draw();
     
     // 프로그램 사용
     m_program->Use();
@@ -344,7 +286,7 @@ void Context::Render(){
         m_program->SetUniform("modelTransform", model);
         // 화면에 그리는 코드
         // 그리는 방식, 정점 개수, 인덱스 데이터 타입, 오프셋을 지정
-        glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+        m_box->Draw();
     }
 }
 

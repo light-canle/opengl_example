@@ -19,6 +19,7 @@ add_executable(${PROJECT_NAME}
     src/vertex_layout.cpp src/vertex_layout.h
     src/image.cpp src/image.h
     src/texture.cpp src/texture.h
+    src/mesh.cpp src/mesh.h
     ) # 실행 파일 - 파일들을 새로이 만들 때마다 추가해 주어야 오류가 안 생긴다.
 
 include(Dependency.cmake)
