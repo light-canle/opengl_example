@@ -76,6 +76,8 @@ private:
     };
     Light m_light;
 
+    bool m_flashLightMode { false };
+
     // Material (재질)
     struct Material {
         TextureUPtr diffuse;

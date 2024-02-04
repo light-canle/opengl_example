@@ -197,6 +197,7 @@ void Context::Render(){
             ImGui::ColorEdit3("l.ambient", glm::value_ptr(m_light.ambient));
             ImGui::ColorEdit3("l.diffuse", glm::value_ptr(m_light.diffuse));
             ImGui::ColorEdit3("l.specular", glm::value_ptr(m_light.specular));
+            ImGui::Checkbox("flash light", &m_flashLightMode);
         }
         // 재질
         if (ImGui::CollapsingHeader("material", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -218,11 +219,6 @@ void Context::Render(){
                     glm::rotate(glm::mat4(1.0f), glm::radians(m_cameraPitch), glm::vec3(1.0f, 0.0f, 0.0f)) * 
                     glm::vec4(0.0f, 0.0f, -1.0f, 0.0f);
 
-    // 손전등 효과를 위한 추가 코드
-    // spot light의 위치와 방향을 카메라와 일치시킨다.
-    // m_light.position = m_cameraPos;
-    // m_light.direction = m_cameraFront;
-
     // 큐브 회전을 위한 새로운 MVP 행렬
     // 화각(FOV), 종횡비(aspect ratio), near~far 설정
     auto projection = glm::perspective(glm::radians(45.0f),
@@ -232,23 +228,34 @@ void Context::Render(){
     auto view = glm::lookAt(m_cameraPos, m_cameraFront + m_cameraPos, m_cameraUp);
 
     /* view matrix를 구했으므로 이제 큐브들을 배치한다. */
-
-    // 조명 역할을 해주는 큐브
-    // 빛의 위치
-    auto lightModelTransform =
-        glm::translate(glm::mat4(1.0), m_light.position) *
-        glm::scale(glm::mat4(1.0f), glm::vec3(0.1f));
-    m_simpleProgram->Use();
-    m_simpleProgram->SetUniform("color", glm::vec4(m_light.ambient + m_light.diffuse, 1.0f));
-    m_simpleProgram->SetUniform("transform", projection * view * lightModelTransform);
-    m_box->Draw(m_simpleProgram.get());
     
+    glm::vec3 lightPos = m_light.position;
+    glm::vec3 lightDir = m_light.direction;
+
+    // 손전등 효과를 위한 추가 코드
+    // spot light의 위치와 방향을 카메라와 일치시킨다.
+    if (m_flashLightMode) {
+        m_light.position = m_cameraPos;
+        m_light.direction = m_cameraFront;
+    }
+    else{
+        // 조명 역할을 해주는 큐브 - flash light가 아닐 때만 그려짐
+        // 빛의 위치
+        auto lightModelTransform =
+            glm::translate(glm::mat4(1.0), m_light.position) *
+            glm::scale(glm::mat4(1.0f), glm::vec3(0.1f));
+        m_simpleProgram->Use();
+        m_simpleProgram->SetUniform("color", glm::vec4(m_light.ambient + m_light.diffuse, 1.0f));
+        m_simpleProgram->SetUniform("transform", projection * view * lightModelTransform);
+        m_box->Draw(m_simpleProgram.get());
+    }
+
     /* === 모델 렌더링 === */
     m_program->Use(); // 프로그램 사용
     // 쉐이더 uniform 지정
     m_program->SetUniform("viewPos", m_cameraPos);
-    m_program->SetUniform("light.position", m_light.position);
-    m_program->SetUniform("light.direction", m_light.direction);
+    m_program->SetUniform("light.position", lightPos);
+    m_program->SetUniform("light.direction", lightDir);
     m_program->SetUniform("light.cutoff", glm::vec2(
         cosf(glm::radians(m_light.cutoff[0])),
         cosf(glm::radians(m_light.cutoff[0] + m_light.cutoff[1]))));
