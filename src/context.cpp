@@ -81,6 +81,11 @@ bool Context::Init() {
     // 박스 생성
     m_box = Mesh::MakeBox();
 
+    // 모델을 불러옴
+    m_model = Model::Load("./model/backpack.obj");
+    if (!m_model)
+        return false;
+
     // 프로그램 생성/정보 출력
     m_simpleProgram = Program::Create("./shader/simple.vert", "./shader/simple.frag");
     if (!m_simpleProgram)
@@ -111,8 +116,12 @@ bool Context::Init() {
         return false;
     m_texture2 = Texture::CreateFromImage(image2.get());
     
-    m_material.diffuse = Texture::CreateFromImage(Image::Load("./image/container2.png").get());
-	m_material.specular = Texture::CreateFromImage(Image::Load("./image/container2_specular.png").get());
+    m_material.diffuse = Texture::CreateFromImage(
+        Image::CreateSingleColorImage(4, 4,
+        glm::vec4(1.0f, 1.0f, 1.0f, 1.0f)).get());
+	m_material.specular = Texture::CreateFromImage(
+        Image::CreateSingleColorImage(4, 4,
+        glm::vec4(0.5f, 0.5f, 0.5f, 1.0f)).get());
 
     // 두 텍스쳐를 각각 텍스쳐 슬롯 0, 1번에 넣는다.
     glActiveTexture(GL_TEXTURE0);
@@ -197,19 +206,6 @@ void Context::Render(){
         ImGui::Checkbox("animation", &m_animation);
     }
     ImGui::End();
-    // 서로 다른 큐브들의 위치 리스트
-    std::vector<glm::vec3> cubePositions = {
-        glm::vec3( 0.0f, 0.0f, 0.0f),
-        glm::vec3( 2.0f, 5.0f, -15.0f),
-        glm::vec3(-1.5f, -2.2f, -2.5f),
-        glm::vec3(-3.8f, -2.0f, -12.3f),
-        glm::vec3( 2.4f, -0.4f, -3.5f),
-        glm::vec3(-1.7f, 3.0f, -7.5f),
-        glm::vec3( 1.3f, -2.0f, -2.5f),
-        glm::vec3( 1.5f, 2.0f, -2.5f),
-        glm::vec3( 1.5f, 0.2f, -1.5f),
-        glm::vec3(-1.3f, 1.0f, -1.5f),
-    };
 
     // 윈도우 초기화 수행
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -247,47 +243,34 @@ void Context::Render(){
     m_simpleProgram->SetUniform("transform", projection * view * lightModelTransform);
     m_box->Draw();
     
-    // 프로그램 사용
-    m_program->Use();
-
-    // 조명 관련 수치들을 uniform으로 넘김
+    /* === 모델 렌더링 === */
+    m_program->Use(); // 프로그램 사용
+    // 쉐이더 uniform 지정
     m_program->SetUniform("viewPos", m_cameraPos);
     m_program->SetUniform("light.position", m_light.position);
     m_program->SetUniform("light.direction", m_light.direction);
     m_program->SetUniform("light.cutoff", glm::vec2(
         cosf(glm::radians(m_light.cutoff[0])),
-        cosf(glm::radians(m_light.cutoff[0] + m_light.cutoff[1]))
-    ));
+        cosf(glm::radians(m_light.cutoff[0] + m_light.cutoff[1]))));
     m_program->SetUniform("light.attenuation", GetAttenuationCoeff(m_light.distance));
     m_program->SetUniform("light.ambient", m_light.ambient);
     m_program->SetUniform("light.diffuse", m_light.diffuse);
     m_program->SetUniform("light.specular", m_light.specular);
-    m_program->SetUniform("material.diffuse", 0);
-    m_program->SetUniform("material.shininess", m_material.shininess);
-    m_program->SetUniform("material.specular", 1);
 
-    // 큐브의 텍스쳐를 가져옴
+    m_program->SetUniform("material.diffuse", 0);
+    m_program->SetUniform("material.specular", 1);
+    m_program->SetUniform("material.shininess", m_material.shininess);
+    // 텍스쳐 바인딩
     glActiveTexture(GL_TEXTURE0);
     m_material.diffuse->Bind();
     glActiveTexture(GL_TEXTURE1);
     m_material.specular->Bind();
 
-    // 큐브마다 서로 위치, 회전을 다르게 한다.
-    for (size_t i = 0; i < cubePositions.size(); i++){
-        auto& pos = cubePositions[i];
-        // 정해진 위치로 이동
-        auto model = glm::translate(glm::mat4(1.0f), pos);
-        // 회전각 설정
-        model = glm::rotate(model, 
-            glm::radians((m_animation ? (float)glfwGetTime() : 0.0f) * 120.0f + 20.0f * (float)i),
-            glm::vec3(1.0f, 0.5f, 0.0f));
-        auto transform = projection * view * model;
-        m_program->SetUniform("transform", transform);
-        m_program->SetUniform("modelTransform", model);
-        // 화면에 그리는 코드
-        // 그리는 방식, 정점 개수, 인덱스 데이터 타입, 오프셋을 지정
-        m_box->Draw();
-    }
+    auto modelTransform = glm::mat4(1.0f);
+    auto transform = projection * view * modelTransform;
+    m_program->SetUniform("transform", transform);
+    m_program->SetUniform("modelTransform", modelTransform);
+    m_model->Draw();
 }
 
 void Context::Reshape(int width, int height) {

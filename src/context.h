@@ -8,6 +8,7 @@
 #include "vertex_layout.h"
 #include "texture.h"
 #include "mesh.h"
+#include "model.h"
 
 CLASS_PTR(Context)
 CLASS_PTR(Buffer)
@@ -36,6 +37,9 @@ private:
 
     // Mesh
     MeshUPtr m_box;
+    // Model
+    ModelUPtr m_model;
+
     // Texture 오브젝트
     TextureUPtr m_texture;
     TextureUPtr m_texture2;

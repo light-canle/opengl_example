@@ -12,6 +12,9 @@ public:
     static ImageUPtr Create(int width, int height, int channelCount = 4);
     ~Image();
 
+    // 단색으로만 이루어진 이미지를 생성
+    static ImageUPtr CreateSingleColorImage(int width, int height, const glm::vec4& color);
+
     const uint8_t* GetData() const { return m_data; } // 데이터 반환
     int GetWidth() const { return m_width; }
     int GetHeight() const { return m_height; }
