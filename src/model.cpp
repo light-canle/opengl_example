@@ -19,6 +19,30 @@ bool Model::LoadByAssimp(const std::string& filename) {
         return false;
     }
 
+    // 모델의 텍스쳐를 불러와서 저장
+    auto dirname = filename.substr(0, filename.find_last_of("/"));
+    // 람다 클로저를 이용해서 텍스쳐 로드 -[&]를 쓰면 캡처를 해서 클로저 바깥의 변수에도 접근 가능
+    auto LoadTexture = [&](aiMaterial* material, aiTextureType type) -> TexturePtr {
+        if (material->GetTextureCount(type) <= 0)
+            return nullptr;
+        aiString filepath;
+        material->GetTexture(type, 0, &filepath);
+        // 이미지로부터 텍스쳐 로딩
+        auto image = Image::Load(fmt::format("{}/{}", dirname, filepath.C_Str()));
+        if (!image)
+            return nullptr;
+        return Texture::CreateFromImage(image.get());
+    };
+
+    // scene 안에 있는 material을 들고와서 그 material의 각각의 텍스쳐를 가져와 m_materials에 넣는다.
+    for (uint32_t i = 0; i < scene->mNumMaterials; i++) {
+        auto material = scene->mMaterials[i];
+        auto glMaterial = Material::Create();
+        glMaterial->diffuse = LoadTexture(material, aiTextureType_DIFFUSE);
+        glMaterial->specular = LoadTexture(material, aiTextureType_SPECULAR);
+        m_materials.push_back(std::move(glMaterial));
+    }
+
     // 성공한 경우 루트 노드를 시작해서 노드들을 재귀적으로 연결
     ProcessNode(scene->mRootNode, scene);
     return true;
@@ -63,11 +87,16 @@ void Model::ProcessMesh(aiMesh* mesh, const aiScene* scene) {
 
     // 정점, 인덱스 배열을 넣어서 Mesh를 만든다.
     auto glMesh = Mesh::Create(vertices, indices, GL_TRIANGLES);
+
+    if (mesh->mMaterialIndex >= 0)
+        glMesh->SetMaterial(m_materials[mesh->mMaterialIndex]);
+
     m_meshes.push_back(std::move(glMesh));
 }
 
-void Model::Draw() const {
+void Model::Draw(const Program* program) const {
     for (auto& mesh: m_meshes) {
-        mesh->Draw();
+        mesh->Draw(program);
     }
 }
+

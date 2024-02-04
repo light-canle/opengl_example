@@ -34,9 +34,13 @@ void Mesh::Init(
     m_vertexLayout->SetAttrib(2, 2, GL_FLOAT, false, sizeof(Vertex), offsetof(Vertex, texCoord)); // 텍스쳐 좌표(6~7)
 }
 
-void Mesh::Draw() const {
+void Mesh::Draw(const Program* program) const {
     // VAO 바인딩
     m_vertexLayout->Bind();
+    // material이 있으면 program에 세팅
+    if (m_material) {
+        m_material->SetToProgram(program);
+    }
     // 그림을 그림
     glDrawElements(m_primitiveType, m_indexBuffer->GetCount(), GL_UNSIGNED_INT, 0);
 }
@@ -85,4 +89,24 @@ MeshUPtr Mesh::MakeBox() {
     };
 
     return Mesh::Create(vertices, indices, GL_TRIANGLES);
+}
+
+void Material::SetToProgram(const Program* program) const {
+    int textureCount = 0;
+    // diffuse 맵이 있는 경우
+    if (diffuse) {
+        glActiveTexture(GL_TEXTURE0 + textureCount);
+        program->SetUniform("material.diffuse", textureCount);
+        diffuse->Bind();
+        textureCount++;
+    }
+    // specular 맵이 있는 경우
+    if (specular) {
+        glActiveTexture(GL_TEXTURE0 + textureCount);
+        program->SetUniform("material.specular", textureCount);
+        specular->Bind();
+        textureCount++;
+    }
+    glActiveTexture(GL_TEXTURE0);
+    program->SetUniform("material.shininess", shininess);
 }

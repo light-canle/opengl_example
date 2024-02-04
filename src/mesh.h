@@ -4,12 +4,30 @@
 #include "common.h"
 #include "buffer.h"
 #include "vertex_layout.h"
+#include "texture.h"
+#include "program.h"
 
 // 1개의 vertex에 대한 정보를 담은 struct
 struct Vertex {
     glm::vec3 position;
     glm::vec3 normal;
     glm::vec2 texCoord;
+};
+
+CLASS_PTR(Material);
+class Material {
+public:
+    static MaterialUPtr Create() {
+        return MaterialUPtr(new Material());
+    }
+    TexturePtr diffuse;
+    TexturePtr specular;
+    float shininess { 32.0f };
+
+    void SetToProgram(const Program* program) const;
+
+private:
+    Material() {}
 };
 
 CLASS_PTR(Mesh);
@@ -25,9 +43,13 @@ public:
     const VertexLayout* GetVertexLayout() const { return m_vertexLayout.get(); }
     BufferPtr GetVertexBuffer() const { return m_vertexBuffer; }
     BufferPtr GetIndexBuffer() const { return m_indexBuffer; }
+    
+    // Material을 설정하고 가져오는 함수
+    void SetMaterial(MaterialPtr material) { m_material = material; }
+    MaterialPtr GetMaterial() const { return m_material; }
 
     // 해당 데이터의 물체를 렌더링
-    void Draw() const;
+    void Draw(const Program* program) const;
 
 private:
     Mesh() {}
@@ -44,6 +66,8 @@ private:
     BufferPtr m_vertexBuffer;
     // EBO
     BufferPtr m_indexBuffer;
+    // Material
+    MaterialPtr m_material;
 };
 
 #endif // __MESH_H__

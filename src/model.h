@@ -16,7 +16,7 @@ public:
 
     int GetMeshCount() const { return (int)m_meshes.size(); }
     MeshPtr GetMesh(int index) const { return m_meshes[index]; } // index 번째 매쉬를 가져옴
-    void Draw() const; // 모델을 그림
+    void Draw(const Program* program) const; // 모델을 그림
 
 private:
     Model() {}
@@ -26,6 +26,8 @@ private:
     
     // Mesh 데이터의 배열
     std::vector<MeshPtr> m_meshes;
+    // Material 데이터의 배열
+    std::vector<MaterialPtr> m_materials;
 };
 
 #endif // __MODEL_H__
