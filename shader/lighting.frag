@@ -61,4 +61,7 @@ void main() {
     }
     result *= attenuation;
     fragColor = vec4(result, 1.0);
+    
+    // z buffer 값을 시각화하기 위한 테스트 코드
+    // fragColor = vec4(vec3(gl_FragCoord.z), 1.0);
 }

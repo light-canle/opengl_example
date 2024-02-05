@@ -37,18 +37,21 @@ private:
 
     // Mesh
     MeshUPtr m_box;
-    // Model
-    ModelUPtr m_model;
+
+    // Material
+    MaterialPtr m_planeMaterial;
+    MaterialPtr m_box1Material;
+    MaterialPtr m_box2Material;
 
     // Texture 오브젝트
     TextureUPtr m_texture;
     TextureUPtr m_texture2;
 
     // camera parameter
-    glm::vec3 m_cameraPos { glm::vec3(0.0f, 0.0f, 3.0f) }; // p = e 카메라 위치 벡터
+    glm::vec3 m_cameraPos { glm::vec3(0.0f, 2.5f, 8.0f) }; // p = e 카메라 위치 벡터
     glm::vec3 m_cameraFront { glm::vec3(0.0f, 0.0f, -1.0f) }; // 카메라가 보고 있는 방향
     glm::vec3 m_cameraUp { glm::vec3(0.0f, 1.0f, 0.0f) }; // u 벡터(up 벡터)
-    float m_cameraPitch { 0.0f }; // x축 기준 회전값(위/아래)
+    float m_cameraPitch { -20.0f }; // x축 기준 회전값(위/아래)
     float m_cameraYaw { 0.0f }; // y축 기준 회전값(좌/우)
     bool m_cameraControl { false }; // 카메라를 움직일 지 여부(마우스 오른쪽 키를 누르는 동안 true)
     glm::vec2 m_prevMousePos { glm::vec2(0.0f) }; // 카메라 이전 위치
@@ -65,26 +68,18 @@ private:
 
     // light (조명)
     struct Light {
-        glm::vec3 position { glm::vec3(2.0f, 2.0f, 2.0f) };
+        glm::vec3 position { glm::vec3(1.0f, 4.0f, 4.0f) };
         glm::vec3 direction { glm::vec3(-1.0f, -1.0f, -1.0f) };
         // 단위는 육십분법, 1번째는 inner, 2번째는 outer와 inner의 차이 각도가 들어간다.
-        glm::vec2 cutoff { glm::vec2(20.0f, 5.0f) };
-        float distance { 32.0f };
+        glm::vec2 cutoff { glm::vec2(120.0f, 5.0f) };
+        float distance { 128.0f };
         glm::vec3 ambient { glm::vec3(0.1f, 0.1f, 0.1f) };
-        glm::vec3 diffuse { glm::vec3(0.5f, 0.5f, 0.5f) };
+        glm::vec3 diffuse { glm::vec3(0.8f, 0.8f, 0.8f) };
         glm::vec3 specular { glm::vec3(1.0f, 1.0f, 1.0f) };
     };
     Light m_light;
 
     bool m_flashLightMode { false };
-
-    // Material (재질)
-    struct Material {
-        TextureUPtr diffuse;
-        TextureUPtr specular;
-        float shininess { 32.0f };
-    };
-    Material m_material;
 };
 
 #endif
