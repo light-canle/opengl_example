@@ -1,5 +1,13 @@
 #include "texture.h"
 
+TextureUPtr Texture::Create(int width, int height, uint32_t format) {
+    auto texture = TextureUPtr(new Texture());
+    texture->CreateTexture();
+    texture->SetTextureFormat(width, height, format);
+    texture->SetFilter(GL_LINEAR, GL_LINEAR);
+    return std::move(texture);
+}
+
 TextureUPtr Texture::CreateFromImage(const Image* image) {
     // 텍스쳐 인스턴스 생성
     auto texture = TextureUPtr(new Texture());
@@ -52,11 +60,27 @@ void Texture::SetTextureFromImage(const Image* image) {
         case 2: format = GL_RG; break;
         case 3: format = GL_RGB; break;
     }
+
+    // 크기와 포맷 설정
+    m_width = image->GetWidth();
+    m_height = image->GetHeight();
+    m_format = format;
+
     // 이미지 데이터를 GPU에 복사
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
-        image->GetWidth(), image->GetHeight(), 0, // 이미지 가로, 세로, 보더 크기(이미지 주위를 감싸는 테두리)
+    glTexImage2D(GL_TEXTURE_2D, 0, m_format,
+        m_width, m_height, 0, // 이미지 가로, 세로, 보더 크기(이미지 주위를 감싸는 테두리)
         format, GL_UNSIGNED_BYTE, image->GetData()); // 이미지 데이터 타입, 1채널 데이터 타입, 실제 이미지 데이터
 
     // 텍스쳐를 위한 mipmap(이미지에 대한 더 작은 사본)을 만들어냄
     glGenerateMipmap(GL_TEXTURE_2D);
+}
+
+void Texture::SetTextureFormat(int width, int height, uint32_t format) {
+    m_width = width;
+    m_height = height;
+    m_format = format;
+
+    glTexImage2D(GL_TEXTURE_2D, 0, m_format,
+        m_width, m_height, 0,
+        m_format, GL_UNSIGNED_BYTE, nullptr);
 }

@@ -96,6 +96,10 @@ bool Context::Init() {
     if (!m_textureProgram)
       return false;
 
+    m_postProgram = Program::Create("./shader/texture.vert", "./shader/gamma.frag");
+    if (!m_postProgram)
+        return false;
+
     // glfw 윈도우 배경색 지정(RGBA)
     glClearColor(0.1f, 0.2f, 0.3f, 1.0f);
 
@@ -137,6 +141,8 @@ void Context::Render(){
         if (ImGui::ColorEdit4("background color", glm::value_ptr(m_clearColor))) {
             glClearColor(m_clearColor.r, m_clearColor.g, m_clearColor.b, m_clearColor.a);
         }
+        // 감마 값
+        ImGui::DragFloat("gamma", &m_gamma, 0.01f, 0.0f, 2.0f);
         // 메뉴 구분선
         ImGui::Separator();
         // 카메라 위치, 회전을 바꾸기 위한 drag
@@ -168,8 +174,16 @@ void Context::Render(){
         }
         // 큐브 회전 여부
         ImGui::Checkbox("animation", &m_animation);
+
+        // 화면 미니맵
+        float aspectRatio = (float)m_width / m_height;
+        ImGui::Image((ImTextureID)m_framebuffer->GetColorAttachment()->Get(), 
+            ImVec2(150 * aspectRatio, 150 * aspectRatio));
     }
     ImGui::End();
+
+    // 생성한 프레임 버퍼 바인딩
+    m_framebuffer->Bind();
 
     // 윈도우 초기화 수행
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
@@ -212,10 +226,6 @@ void Context::Render(){
         m_simpleProgram->SetUniform("transform", projection * view * lightModelTransform);
         m_box->Draw(m_simpleProgram.get());
     }
-
-    // 페이스 컬링 설정 - 뒷면을 그리지 않음
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
 
     /* === 물체 렌더링 === */
     m_program->Use(); // 프로그램 사용
@@ -291,11 +301,30 @@ void Context::Render(){
 
     // Note : 이 코드에서는 반투명 오브젝트를 그리는 데에 있어서 순서가 고정되어 있다.
     // 그래서 3개의 창문을 뒤에서 보게 되는 경우 앞의 창문이 먼저 그려지고, 뒤의 창문의 픽셀은
-    // depth test를 실패해서 첫 번째 창문이 뒤의 창문을 가리는 문제가 있다. (face culling으로 뒤에서는 창문이 안 보이게 해놓음)
+    // depth test를 실패해서 첫 번째 창문이 뒤의 창문을 가리는 문제가 있다.
+
+    // 장면 그리기가 끝난 뒤 기본 프레임 버퍼로 바인딩을 바꾼다. 앞에서 렌더링한 장면이 텍스쳐로 저장되는데
+    // 이 텍스쳐로 화면을 꽉 채우는 사각형을 그린다. - 결과는 이전과 다름이 없다.
+    // 그러나 저 사각형의 transform을 조정함으로써 화면을 작거나 크게, 회전 시키는 등 다양한 변형이 가능하다.
+    // 뿐만 아니라 렌더링된 화면이 텍스쳐이므로 다른 곳에 활용할 수도 있다.
+    Framebuffer::BindToDefault();
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+    // postProgram을 사용해서 렌더링된 화면에 포스트 프로세싱을 할 수 있다. (다른 fragment shader를 사용)
+    m_postProgram->Use();
+    m_postProgram->SetUniform("transform",
+        glm::scale(glm::mat4(1.0f), glm::vec3(2.0f, 2.0f, 1.0f))); // 크기가 2인 이유는 화면상 좌표의 범위가 -1 ~ 1이기 때문
+    m_framebuffer->GetColorAttachment()->Bind();
+    m_postProgram->SetUniform("tex", 0);
+    m_postProgram->SetUniform("gamma", m_gamma);
+    m_plane->Draw(m_postProgram.get());
 }
 
 void Context::Reshape(int width, int height) {
     m_width = width;
     m_height = height;
     glViewport(0, 0, width, height);
+    // 화면 크기와 동일한 프레임 버퍼 생성
+    m_framebuffer = Framebuffer::Create(Texture::Create(width, height, GL_RGBA));
 }

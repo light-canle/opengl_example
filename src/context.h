@@ -9,6 +9,7 @@
 #include "texture.h"
 #include "mesh.h"
 #include "model.h"
+#include "framebuffer.h"
 
 CLASS_PTR(Context)
 CLASS_PTR(Buffer)
@@ -35,6 +36,10 @@ private:
     ProgramUPtr m_program;
     ProgramUPtr m_simpleProgram;
     ProgramUPtr m_textureProgram;
+    ProgramUPtr m_postProgram;
+
+    // post-processing 용 감마값
+    float m_gamma { 1.0f };
 
     // Mesh
     MeshUPtr m_box;
@@ -56,6 +61,9 @@ private:
     float m_cameraYaw { 0.0f }; // y축 기준 회전값(좌/우)
     bool m_cameraControl { false }; // 카메라를 움직일 지 여부(마우스 오른쪽 키를 누르는 동안 true)
     glm::vec2 m_prevMousePos { glm::vec2(0.0f) }; // 카메라 이전 위치
+
+    // framebuffer
+    FramebufferUPtr m_framebuffer;
 
     // 현재 화면 크기
     int m_width { WINDOW_WIDTH };
