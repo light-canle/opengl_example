@@ -73,3 +73,37 @@ glDepthFunc(GL_LESS);
 2. z-fighting
     - 앞에서 언급한 깊이 값의 왜곡 때문에 발생하는 현상이다. 서로 다른 두 면의 좌표값 차이가 거의 없는 경우 그 물체로부터 멀어질 때, 두 면의 깊이 값 차이가 거의 없어져서 근소한 차이로 뒤에 있는 면이 앞에 있는 면과 겹쳐보이는 현상이 발생하는데 이를 z-fighting이라고 한다.
     - 이를 방지하려면, 서로 다른 두 물체의 면을 너무 가깝게 하지 말고, perspective projection에서 near값을 너무 작게 하지 않으며, 더 정확한 depth buffer를 사용해야 한다.
+
+### stencil buffer
+
+- 특정 픽셀에만 그림을 그리도록 설정하기 위해 사용하는 8bit의 정수형 버퍼 - 공판화를 떠올리면 쉽다.
+- stencil test는 depth test에 앞서 실행된다.
+
+```c++
+glEnable(GL_STENCIL_TEST); // 스텐실 테스트를 활성화
+glStencilMask(0xFF); // 스텐실 버퍼에 적용할 마스크값(0~255) 
+// 255이면, 각 비트는 스텐실 버퍼에 그대로 작성되고, 0이면 비트는 항상 0으로 쓰여진다.
+
+// 스텐실 버퍼도 업데이트를 위해 초기화 해주어야 한다.
+glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT); 
+```
+
+### stencil buffer의 함수
+
+```c++
+// 스텐실 버퍼
+glStencilFunc(GL_EQUAL, 1, 0xFF);
+```
+
+- 1번째 인자에 비교 연산자를 써준다.
+- 2번째는 각 비트의 스텐실 값과 비교할 값을 써준다.
+- 3번째는 비교하기 전 각 비트의 값과 bit AND 연산을 해줄 비트 마스크를 지정해준다.
+- 위의 함수는 각 비트의 값이 1이면 스텐실 테스트를 통과해서 해당 비트가 그려진다는 것을 의미한다.
+
+```c++
+// 스텐실 테스트와 depth 테스트가 성공 또는 실패했을 때 수행할 행동을 지정
+glStencilOp(sfail, dpfail, dppass);
+```
+
+- sfail에는 스텐실 테스트가 실패했을 때 수행할 행동, dpfail에는 스텐실 테스트는 성공했으나 depth test가 실패한 경우, dppass에는 둘 다 성공한 경우 수행할 행동이 들어간다.
+- 행동에는 GL_KEEP (스텐실 값 유지), GL_ZERO (0으로 만듦), GL_REPLACE (glStencilFunc에서 지정한 2번째 인자의 값으로 바꿈), GL_INVERT (스텐실 값에 bit not 연산 수행) 등이 있다. (https://heinleinsgame.tistory.com/25 참고)

@@ -182,7 +182,7 @@ void Context::Render(){
     ImGui::End();
 
     // 윈도우 초기화 수행
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
     // Z buffer 활성화
     glEnable(GL_DEPTH_TEST);
 
@@ -238,6 +238,7 @@ void Context::Render(){
     m_program->SetUniform("light.specular", m_light.specular);
 
     // 바닥과 2개의 상자의 transform을 각각 지정한 후 그린다.
+    // 바닥
     auto modelTransform = 
         glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.5f, 0.0f)) * 
         glm::scale(glm::mat4(1.0f), glm::vec3(10.0f, 1.0f, 10.0f));
@@ -247,6 +248,7 @@ void Context::Render(){
     m_planeMaterial->SetToProgram(m_program.get());
     m_box->Draw(m_program.get());
 
+    // 1번째 상자
     modelTransform =
         glm::translate(glm::mat4(1.0f), glm::vec3(-1.0f, 0.75f, -4.0f)) *
         glm::rotate(glm::mat4(1.0f), glm::radians(30.0f), glm::vec3(0.0f, 1.0f, 0.0f)) *
@@ -257,6 +259,16 @@ void Context::Render(){
     m_box1Material->SetToProgram(m_program.get());
     m_box->Draw(m_program.get());
 
+    // 2번째 상자에는 스텐실 버퍼를 이용해 외각선을 그릴 것이다.
+    // 스텐실 테스트 활성화
+    glEnable(GL_STENCIL_TEST);
+    // depth test에 실패하면(상자가 다른 물체에 가려지면) 스텐실 값이 그대로이고, 
+    // 성공하면 glStencilFunc의 2번째 인자인 1로 바뀐다.
+    glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+    glStencilFunc(GL_ALWAYS, 1, 0xFF); // GL_ALWAYS이므로 스텐실 테스트는 언제나 성공한다.
+    glStencilMask(0xFF);
+
+    // 2번째 상자를 그린다.
     modelTransform =
         glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.75f, 2.0f)) *
         glm::rotate(glm::mat4(1.0f), glm::radians(20.0f), glm::vec3(0.0f, 1.0f, 0.0f)) *
@@ -266,6 +278,26 @@ void Context::Render(){
     m_program->SetUniform("modelTransform", modelTransform);
     m_box2Material->SetToProgram(m_program.get());
     m_box->Draw(m_program.get());
+
+    // 2번째 상자에 외각선을 그리기 위한 스텐실 함수 설정
+    // 스텐실 값이 1이 아닌 픽셀에만 그림을 그린다.
+    glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
+    glStencilMask(0x00);
+    glDisable(GL_DEPTH_TEST); // 외각선은 위치 상관없이 그려지도록 하기 위함이다.
+    // 외각선을 위한 shader 설정
+    m_simpleProgram->Use();
+    m_simpleProgram->SetUniform("color", glm::vec4(1.0f, 1.0f, 0.5f, 1.0f));
+    // 원래 상자보다 1.05배 크게 그린다. 이때 이미 그려진 상자를 이루는 픽셀의 스텐실 값은 1이므로
+    // 위의 설정에 의해 기존의 상자 부분은 그대로 유지한 채 외각선 부분만 그리게 된다.
+    m_simpleProgram->SetUniform("transform", transform *
+    glm::scale(glm::mat4(1.0f), glm::vec3(1.05f, 1.05f, 1.05f)));
+    m_box->Draw(m_simpleProgram.get());
+
+    // 원래대로 되돌림
+    glEnable(GL_DEPTH_TEST);
+    glDisable(GL_STENCIL_TEST);
+    glStencilFunc(GL_ALWAYS, 1, 0xFF);
+    glStencilMask(0xFF);
 }
 
 void Context::Reshape(int width, int height) {
