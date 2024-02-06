@@ -80,8 +80,10 @@ void Context::MouseButton(int button, int action, double x, double y) {
 bool Context::Init() {
     // 박스 생성
     m_box = Mesh::MakeBox();
+    // 평면 생성
+    m_plane = Mesh::CreatePlane();
 
-    // 프로그램 생성/정보 출력
+    // 프로그램 생성
     m_simpleProgram = Program::Create("./shader/simple.vert", "./shader/simple.frag");
     if (!m_simpleProgram)
         return false;
@@ -90,26 +92,12 @@ bool Context::Init() {
     if (!m_program)
         return false;
 
-    m_program->Use(); // Use 실행
+    m_textureProgram = Program::Create("./shader/texture.vert", "./shader/texture.frag");
+    if (!m_textureProgram)
+      return false;
 
     // glfw 윈도우 배경색 지정(RGBA)
     glClearColor(0.1f, 0.2f, 0.3f, 1.0f);
-
-    // 텍스쳐에 쓸 이미지 로드
-    auto image = Image::Load("./image/container.jpg");
-    if (!image) 
-        return false;
-    // 이미지 정보 출력
-    SPDLOG_INFO("image: {}x{}, {} channels", 
-        image->GetWidth(), image->GetHeight(), image->GetChannelCount());
-
-    // 텍스쳐 생성
-    m_texture = Texture::CreateFromImage(image.get());
-
-    auto image2 = Image::Load("./image/awesomeface.png");
-    if (!image2) 
-        return false;
-    m_texture2 = Texture::CreateFromImage(image2.get());
 
     // specular 맵으로 사용할 텍스쳐
     // 1번 상자의 specular 텍스쳐
@@ -135,6 +123,8 @@ bool Context::Init() {
     m_box2Material->diffuse = Texture::CreateFromImage(Image::Load("./image/container2.png").get());
     m_box2Material->specular = Texture::CreateFromImage(Image::Load("./image/container2_specular.png").get());
     m_box2Material->shininess = 64.0f;
+    // 창문
+    m_windowTexture = Texture::CreateFromImage(Image::Load("./image/blending_transparent_window.png").get());
 
     return true;
 }
@@ -223,6 +213,10 @@ void Context::Render(){
         m_box->Draw(m_simpleProgram.get());
     }
 
+    // 페이스 컬링 설정 - 뒷면을 그리지 않음
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+
     /* === 물체 렌더링 === */
     m_program->Use(); // 프로그램 사용
     // 쉐이더 uniform 지정 (light 설정)
@@ -259,16 +253,7 @@ void Context::Render(){
     m_box1Material->SetToProgram(m_program.get());
     m_box->Draw(m_program.get());
 
-    // 2번째 상자에는 스텐실 버퍼를 이용해 외각선을 그릴 것이다.
-    // 스텐실 테스트 활성화
-    glEnable(GL_STENCIL_TEST);
-    // depth test에 실패하면(상자가 다른 물체에 가려지면) 스텐실 값이 그대로이고, 
-    // 성공하면 glStencilFunc의 2번째 인자인 1로 바뀐다.
-    glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
-    glStencilFunc(GL_ALWAYS, 1, 0xFF); // GL_ALWAYS이므로 스텐실 테스트는 언제나 성공한다.
-    glStencilMask(0xFF);
-
-    // 2번째 상자를 그린다.
+    // 2번째 상자
     modelTransform =
         glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.75f, 2.0f)) *
         glm::rotate(glm::mat4(1.0f), glm::radians(20.0f), glm::vec3(0.0f, 1.0f, 0.0f)) *
@@ -279,25 +264,34 @@ void Context::Render(){
     m_box2Material->SetToProgram(m_program.get());
     m_box->Draw(m_program.get());
 
-    // 2번째 상자에 외각선을 그리기 위한 스텐실 함수 설정
-    // 스텐실 값이 1이 아닌 픽셀에만 그림을 그린다.
-    glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
-    glStencilMask(0x00);
-    glDisable(GL_DEPTH_TEST); // 외각선은 위치 상관없이 그려지도록 하기 위함이다.
-    // 외각선을 위한 shader 설정
-    m_simpleProgram->Use();
-    m_simpleProgram->SetUniform("color", glm::vec4(1.0f, 1.0f, 0.5f, 1.0f));
-    // 원래 상자보다 1.05배 크게 그린다. 이때 이미 그려진 상자를 이루는 픽셀의 스텐실 값은 1이므로
-    // 위의 설정에 의해 기존의 상자 부분은 그대로 유지한 채 외각선 부분만 그리게 된다.
-    m_simpleProgram->SetUniform("transform", transform *
-    glm::scale(glm::mat4(1.0f), glm::vec3(1.05f, 1.05f, 1.05f)));
-    m_box->Draw(m_simpleProgram.get());
+    // 반투명 창문을 그리기 위해 블렌딩 활성화
+    glEnable(GL_BLEND);
+    // f_source, f_dest 지정
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    // 원래대로 되돌림
-    glEnable(GL_DEPTH_TEST);
-    glDisable(GL_STENCIL_TEST);
-    glStencilFunc(GL_ALWAYS, 1, 0xFF);
-    glStencilMask(0xFF);
+    m_textureProgram->Use();
+    m_windowTexture->Bind();
+    m_textureProgram->SetUniform("tex", 0);
+
+    // 반투명 창문을 3개 그린다.
+    modelTransform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.5f, 4.0f));
+    transform = projection * view * modelTransform;
+    m_textureProgram->SetUniform("transform", transform);
+    m_plane->Draw(m_textureProgram.get());
+
+    modelTransform = glm::translate(glm::mat4(1.0f), glm::vec3(0.2f, 0.5f, 5.0f));
+    transform = projection * view * modelTransform;
+    m_textureProgram->SetUniform("transform", transform);
+    m_plane->Draw(m_textureProgram.get());
+
+    modelTransform = glm::translate(glm::mat4(1.0f), glm::vec3(0.4f, 0.5f, 6.0f));
+    transform = projection * view * modelTransform;
+    m_textureProgram->SetUniform("transform", transform);
+    m_plane->Draw(m_textureProgram.get());
+
+    // Note : 이 코드에서는 반투명 오브젝트를 그리는 데에 있어서 순서가 고정되어 있다.
+    // 그래서 3개의 창문을 뒤에서 보게 되는 경우 앞의 창문이 먼저 그려지고, 뒤의 창문의 픽셀은
+    // depth test를 실패해서 첫 번째 창문이 뒤의 창문을 가리는 문제가 있다. (face culling으로 뒤에서는 창문이 안 보이게 해놓음)
 }
 
 void Context::Reshape(int width, int height) {

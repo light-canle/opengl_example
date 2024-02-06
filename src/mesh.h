@@ -39,6 +39,8 @@ public:
         uint32_t primitiveType); // primitive type
     // box를 생성하는 함수
     static MeshUPtr MakeBox();
+    // plane을 생성하는 함수
+    static MeshUPtr CreatePlane();
 
     const VertexLayout* GetVertexLayout() const { return m_vertexLayout.get(); }
     BufferPtr GetVertexBuffer() const { return m_vertexBuffer; }

@@ -4,9 +4,13 @@ in vec2 texCoord;
 out vec4 fragColor;
 
 uniform sampler2D tex;
-uniform sampler2D tex2;
 
 void main() {
-    // 텍스쳐 블랜딩
-    fragColor = texture(tex, texCoord) * 0.8 + texture(tex2, texCoord) * 0.2;
+    // 텍스쳐를 그대로 적용
+    vec4 pixel = texture(tex, texCoord);
+    // alpha가 너무 낮으면 해당 픽셀은 그리지 않음
+    if (pixel.a < 0.01){
+        discard;
+    }
+    fragColor = pixel;
 }

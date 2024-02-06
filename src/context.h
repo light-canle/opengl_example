@@ -34,9 +34,11 @@ private:
     // 프로그램 저장용 포인터
     ProgramUPtr m_program;
     ProgramUPtr m_simpleProgram;
+    ProgramUPtr m_textureProgram;
 
     // Mesh
     MeshUPtr m_box;
+    MeshUPtr m_plane;
 
     // Material
     MaterialPtr m_planeMaterial;
@@ -44,8 +46,7 @@ private:
     MaterialPtr m_box2Material;
 
     // Texture 오브젝트
-    TextureUPtr m_texture;
-    TextureUPtr m_texture2;
+    TexturePtr m_windowTexture;
 
     // camera parameter
     glm::vec3 m_cameraPos { glm::vec3(0.0f, 2.5f, 8.0f) }; // p = e 카메라 위치 벡터
