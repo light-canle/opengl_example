@@ -145,6 +145,7 @@ bool Context::Init() {
         cubeBack.get(),
     });
     m_skyboxProgram = Program::Create("./shader/skybox.vert", "./shader/skybox.frag");
+    m_envMapProgram = Program::Create("./shader/env_map.vert", "./shader/env_map.frag");
 
     return true;
 }
@@ -267,7 +268,7 @@ void Context::Render(){
     m_program->SetUniform("light.diffuse", m_light.diffuse);
     m_program->SetUniform("light.specular", m_light.specular);
 
-    // 바닥과 2개의 상자의 transform을 각각 지정한 후 그린다.
+    // 바닥과 3개의 상자의 transform을 각각 지정한 후 그린다.
     // 바닥
     auto modelTransform = 
         glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.5f, 0.0f)) * 
@@ -299,6 +300,21 @@ void Context::Render(){
     m_program->SetUniform("modelTransform", modelTransform);
     m_box2Material->SetToProgram(m_program.get());
     m_box->Draw(m_program.get());
+
+    // 3번째 상자 - 이 상자에는 environment mapping을 적용해서
+    // Skymap의 모습이 그려지게 된다.
+    modelTransform =
+        glm::translate(glm::mat4(1.0f), glm::vec3(1.0f, 0.75f, -2.0f)) *
+        glm::rotate(glm::mat4(1.0f), glm::radians(40.0f), glm::vec3(0.0f, 1.0f, 0.0f)) *
+        glm::scale(glm::mat4(1.0f), glm::vec3(1.5f, 1.5f, 1.5f));
+    m_envMapProgram->Use();
+    m_envMapProgram->SetUniform("model", modelTransform);
+    m_envMapProgram->SetUniform("view", view);
+    m_envMapProgram->SetUniform("projection", projection);
+    m_envMapProgram->SetUniform("cameraPos", m_cameraPos);
+    m_cubeTexture->Bind();
+    m_envMapProgram->SetUniform("skybox", 0);
+    m_box->Draw(m_envMapProgram.get());
 
     // 반투명 창문을 그리기 위해 블렌딩 활성화
     glEnable(GL_BLEND);

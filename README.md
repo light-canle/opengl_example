@@ -180,3 +180,17 @@ glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB,
             image->GetWidth(), image->GetHeight(), 0,
             format, GL_UNSIGNED_BYTE, image->GetData());
 ```
+
+### Environment mapping
+
+- SkyBox의 텍스쳐를 특정 오브젝트에 적용하는 방식 - 즉, SkyBox의 모습이 거울처럼 렌더링하고자 하는 오브젝트에 그려지게 된다.
+- SkyBox의 모습이 물체에 반사되거나 굴절되어 보이도록 할 수 있다.
+- 물체를 바라보는 시선 벡터와, 바라보는 위치의 법선 벡터를 구한 뒤, 그들을 이용해서 반사 벡터를 구한다. 그 후 반사 벡터와 SkyBox가 만난 지점의 픽셀이 그 큐브에 그려지게 된다.
+
+```GLSL
+vec3 I = normalize(position - cameraPos);
+vec3 R = reflect(I, normalize(normal));
+fragColor = vec4(texture(skybox, R).rgb, 1.0);
+```
+
+- 단독으로 사용할 경우 SkyBox의 모습이 그대로 물체에 그려지므로, 그 물체 주변에 다른 물체들이 있더라도 무시되고 오로지 SkyBox의 모습만 그려져 비현실적일 수 있다. 그래서 빛을 렌더링하는 일반적인 쉐이더들과 함께 사용한다.

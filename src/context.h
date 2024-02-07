@@ -78,6 +78,7 @@ private:
     // cubemap
     CubeTextureUPtr m_cubeTexture;
     ProgramUPtr m_skyboxProgram;
+    ProgramUPtr m_envMapProgram;
 
     // light (조명)
     struct Light {
