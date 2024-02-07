@@ -7,7 +7,7 @@ CLASS_PTR(Image)
 class Image {
 public:
     // 이미지 로드
-    static ImageUPtr Load(const std::string& filepath);
+    static ImageUPtr Load(const std::string& filepath, bool flipVertical = true);
     // 이미지 생성
     static ImageUPtr Create(int width, int height, int channelCount = 4);
     ~Image();
@@ -25,7 +25,7 @@ public:
 
 private:
     Image() {};
-    bool LoadWithStb(const std::string& filepath); // 이미지 로드
+    bool LoadWithStb(const std::string& filepath, bool flipVertical); // 이미지 로드
     bool Allocate(int width, int height, int channelCount); // 이미지 생성을 위한 메모리 할당
     int m_width { 0 }; // 가로 길이
     int m_height { 0 }; // 세로 길이

@@ -129,6 +129,22 @@ bool Context::Init() {
     m_box2Material->shininess = 64.0f;
     // 창문
     m_windowTexture = Texture::CreateFromImage(Image::Load("./image/blending_transparent_window.png").get());
+    // 스카이 박스
+    auto cubeRight = Image::Load("./image/skybox/right.jpg", false); // pos x
+    auto cubeLeft = Image::Load("./image/skybox/left.jpg", false); // neg x
+    auto cubeTop = Image::Load("./image/skybox/top.jpg", false); // pos y
+    auto cubeBottom = Image::Load("./image/skybox/bottom.jpg", false); // neg y
+    auto cubeFront = Image::Load("./image/skybox/front.jpg", false); // pos z
+    auto cubeBack = Image::Load("./image/skybox/back.jpg", false); // neg z
+    m_cubeTexture = CubeTexture::CreateFromImages({
+        cubeRight.get(),
+        cubeLeft.get(),
+        cubeTop.get(),
+        cubeBottom.get(),
+        cubeFront.get(),
+        cubeBack.get(),
+    });
+    m_skyboxProgram = Program::Create("./shader/skybox.vert", "./shader/skybox.frag");
 
     return true;
 }
@@ -199,13 +215,23 @@ void Context::Render(){
     // 큐브 회전을 위한 새로운 MVP 행렬
     // 화각(FOV), 종횡비(aspect ratio), near~far 설정
     auto projection = glm::perspective(glm::radians(45.0f),
-      (float)m_width / (float)m_height, 0.1f, 100.0f);
+      (float)m_width / (float)m_height, 0.01f, 100.0f);
 
     // 카메라의 위치, 타겟 위치를 이용한 view 행렬 계산
     auto view = glm::lookAt(m_cameraPos, m_cameraFront + m_cameraPos, m_cameraUp);
 
-    /* view matrix를 구했으므로 이제 큐브들을 배치한다. */
+    /* view matrix를 구했으므로 이제 물체들을 배치한다. */
     
+    // Skybox 렌더링 - 크기 50짜리 큐브를 사용한다.
+    auto skyboxModelTransform =
+      glm::translate(glm::mat4(1.0), m_cameraPos) *
+      glm::scale(glm::mat4(1.0), glm::vec3(50.0f));
+    m_skyboxProgram->Use();
+    m_cubeTexture->Bind();
+    m_skyboxProgram->SetUniform("skybox", 0);
+    m_skyboxProgram->SetUniform("transform", projection * view * skyboxModelTransform);
+    m_box->Draw(m_skyboxProgram.get());
+
     glm::vec3 lightPos = m_light.position;
     glm::vec3 lightDir = m_light.direction;
 

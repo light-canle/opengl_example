@@ -75,6 +75,10 @@ private:
     // cube animation (큐브의 회전 여부)
     bool m_animation { true };
 
+    // cubemap
+    CubeTextureUPtr m_cubeTexture;
+    ProgramUPtr m_skyboxProgram;
+
     // light (조명)
     struct Light {
         glm::vec3 position { glm::vec3(1.0f, 4.0f, 4.0f) };

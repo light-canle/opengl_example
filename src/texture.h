@@ -39,4 +39,21 @@ private:
     uint32_t m_format { GL_RGBA };
 };
 
+// 큐브맵을 위한 텍스쳐
+CLASS_PTR(CubeTexture)
+class CubeTexture {
+public:
+    // 이미지들(6장)로 부터 큐브맵 텍스쳐 생성
+    static CubeTextureUPtr CreateFromImages(const std::vector<Image*> &images);
+    ~CubeTexture();
+
+    const uint32_t Get() const { return m_texture; }
+    void Bind() const;
+private:
+    CubeTexture() {}
+    bool InitFromImages(const std::vector<Image*> &images);
+    // 텍스쳐 ID
+    uint32_t m_texture { 0 };
+};
+
 #endif // __TEXTURE_H__

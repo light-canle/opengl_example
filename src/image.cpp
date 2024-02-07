@@ -2,11 +2,11 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 
-ImageUPtr Image::Load(const std::string& filepath) {
+ImageUPtr Image::Load(const std::string& filepath, bool flipVertical) {
     // 이미지 객체 만듦
     auto image = ImageUPtr(new Image());
     // 초기화
-    if (!image->LoadWithStb(filepath))
+    if (!image->LoadWithStb(filepath, flipVertical))
         return nullptr;
     return std::move(image);
 }
@@ -19,8 +19,8 @@ Image::~Image() {
 }
 
 // 파일 경로를 받아 stb 라이브러리를 사용해서 이미지 생성
-bool Image::LoadWithStb(const std::string& filepath) {
-    stbi_set_flip_vertically_on_load(true); // 상하 반전으로 이미지를 원래대로 나타나게 함
+bool Image::LoadWithStb(const std::string& filepath, bool flipVertical) {
+    stbi_set_flip_vertically_on_load(flipVertical); // true일 경우 상하 반전으로 이미지를 원래대로 나타나게 함
     m_data = stbi_load(filepath.c_str(), &m_width, &m_height, &m_channelCount, 0);
     if (!m_data) {
         SPDLOG_ERROR("failed to load image: {}", filepath);
