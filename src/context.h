@@ -37,6 +37,7 @@ private:
     ProgramUPtr m_simpleProgram;
     ProgramUPtr m_textureProgram;
     ProgramUPtr m_postProgram;
+    ProgramUPtr m_grassProgram;
 
     // post-processing 용 감마값
     float m_gamma { 1.0f };
@@ -52,6 +53,7 @@ private:
 
     // Texture 오브젝트
     TexturePtr m_windowTexture;
+    TexturePtr m_grassTexture;
 
     // camera parameter
     glm::vec3 m_cameraPos { glm::vec3(0.0f, 2.5f, 8.0f) }; // p = e 카메라 위치 벡터
@@ -94,6 +96,11 @@ private:
     Light m_light;
 
     bool m_flashLightMode { false };
+
+    // grass Rendering position
+    std::vector<glm::vec3> m_grassPos;
+    BufferUPtr m_grassPosBuffer; // instance 별로 다른 위치와 회전각 정보를 저장
+    VertexLayoutUPtr m_grassInstance;
 };
 
 #endif

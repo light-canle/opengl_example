@@ -423,3 +423,37 @@ void main() {
 - 입력받고자 하는 primitive를 layout (...) in에 정의하고, 출력하고자 하는 primitive는 layout (...) out에 정의
 - EmitVertex()로 gl_Position에 정의된 정점을 만들어 냄
 - EndPrimitive()로 지금까지 생성한 정점들을 묶어낸 새로운 primitive를 만들어낸다.
+
+### Instancing
+
+- 동일한 오브젝트를 아주 많이 그릴 때 일일이 glDrawArrays()를 호출하면 CPU와 GPU 사이의 통신이 많아져 성능 저하가 발생한다.
+- 그래서 동일한 여러 개의 오브젝트를 한 번의 draw call만을 호출해 모두 그리는 것을 Instancing이라고 한다.
+- glDrawArraysInstanced(), glDrawElementsInstanced() 함수에 개수를 파라미터로 전달하여 instancing을 할 수 있다.
+- gl_InstanceID는 vertex shader에서 쓸 수 있는 built-in variable로 서로 다른 instance를 구분 짓는데 쓴다. 이를 이용해서 각기 다른 오브젝트마다 위치를 달리하거나 다른 특징을 달리하는 등의 차이를 만들어 낼 수 있다.
+
+- VBO를 이용한 Instancing 예시 (<https://learnopengl.com/Advanced-OpenGL/Instancing>에서 가져옴)
+
+```c++
+// instance들의 각각의 정보를 가진 VBO를 생성하고 바인딩 한다.
+// 이는 우리가 원래 만든 물체의 정점의 정보를 담은 VBO와는 다른 것이다.
+unsigned int instanceVBO;
+glGenBuffers(1, &instanceVBO);
+glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
+glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec2) * 100, &translations[0], GL_STATIC_DRAW);
+glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+// vertex attribute 0, 1 setting ...
+
+// 2번 속성에 위에서 만든 VBO를 지정한다.
+// 어렇게 되면 물체의 정점 데이터를 담은 VBO와 instanceVBO, 이렇게 2개의 VBO가 바인딩 된다.
+glEnableVertexAttribArray(2);
+glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
+// 각 인스턴스 별로 들어갈 값을 설정
+glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2*sizeof(float), (void*)0);
+glBindBuffer(GL_ARRAY_BUFFER, 0);
+// 2번 속성(1번째 인자)을 1개(2번째 인자)의 인스턴스가 나올때마다 업데이트 한다.
+// 이 경우 2번 속성은 각 인스턴스 별로 다르게 설정하는 것이 된다. (2번 속성은 gl_InstanceID가 1씩 달라질 때마다 업데이트 된다.)
+glVertexAttribDivisor(2, 1);
+```
+
+- vertex shader에서는 layout (location = 2) in vec2 aOffset; 부분을 추가해 준다.

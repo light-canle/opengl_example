@@ -147,6 +147,34 @@ bool Context::Init() {
     m_skyboxProgram = Program::Create("./shader/skybox.vert", "./shader/skybox.frag");
     m_envMapProgram = Program::Create("./shader/env_map.vert", "./shader/env_map.frag");
 
+    // 풀
+    m_grassTexture = Texture::CreateFromImage(Image::Load("./image/grass.png").get());
+    m_grassProgram = Program::Create("./shader/grass.vert", "./shader/grass.frag");
+    m_grassPos.resize(10000);
+    // 풀 10,000개의 위치를 저장
+    for (size_t i = 0; i < m_grassPos.size(); i++) {
+        // 풀의 위치
+        m_grassPos[i].x = ((float)rand() / (float)RAND_MAX * 2.0f - 1.0f) * 5.0f;
+        m_grassPos[i].z = ((float)rand() / (float)RAND_MAX * 2.0f - 1.0f) * 5.0f;
+        // y축을 기준으로 회전한 정도
+        m_grassPos[i].y = glm::radians((float)rand() / (float)RAND_MAX * 360.0f);
+    }
+    // 풀의 instancing을 위한 새로운 VAO와 VBO를 만든다.
+    m_grassInstance = VertexLayout::Create();
+    m_grassInstance->Bind();
+    m_plane->GetVertexBuffer()->Bind();
+    m_grassInstance->SetAttrib(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
+    m_grassInstance->SetAttrib(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), offsetof(Vertex, normal));
+    m_grassInstance->SetAttrib(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), offsetof(Vertex, texCoord));
+    
+    m_grassPosBuffer = Buffer::CreateWithData(GL_ARRAY_BUFFER, GL_STATIC_DRAW,
+        m_grassPos.data(), sizeof(glm::vec3), m_grassPos.size());
+    m_grassPosBuffer->Bind();
+    // VBO를 3번 속성으로 전달
+    m_grassInstance->SetAttrib(3, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), 0);
+    // 3번 속성은 모든 instance마다 다르게 설정
+    glVertexAttribDivisor(3, 1);
+    m_plane->GetIndexBuffer()->Bind();
     return true;
 }
 
@@ -344,6 +372,19 @@ void Context::Render(){
     // Note : 이 코드에서는 반투명 오브젝트를 그리는 데에 있어서 순서가 고정되어 있다.
     // 그래서 3개의 창문을 뒤에서 보게 되는 경우 앞의 창문이 먼저 그려지고, 뒤의 창문의 픽셀은
     // depth test를 실패해서 첫 번째 창문이 뒤의 창문을 가리는 문제가 있다.
+
+    // 10,000개의 풀을 그린다.
+    glEnable(GL_BLEND);
+    glDisable(GL_CULL_FACE);
+    m_grassProgram->Use();
+    m_grassProgram->SetUniform("tex", 0);
+    m_grassTexture->Bind();
+    m_grassInstance->Bind();
+    modelTransform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.5f, 0.0f));
+    transform = projection * view * modelTransform;
+    m_grassProgram->SetUniform("transform", transform);
+    glDrawElementsInstanced(GL_TRIANGLES, m_plane->GetIndexBuffer()->GetCount(),
+        GL_UNSIGNED_INT, 0, m_grassPosBuffer->GetCount());
 
     // 장면 그리기가 끝난 뒤 기본 프레임 버퍼로 바인딩을 바꾼다. 앞에서 렌더링한 장면이 텍스쳐로 저장되는데
     // 이 텍스쳐로 화면을 꽉 채우는 사각형을 그린다. - 결과는 이전과 다름이 없다.
