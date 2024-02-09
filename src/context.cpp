@@ -78,6 +78,8 @@ void Context::MouseButton(int button, int action, double x, double y) {
 }
 
 bool Context::Init() {
+    // MSAA 활성화
+    glEnable(GL_MULTISAMPLE);
     // 박스 생성
     m_box = Mesh::MakeBox();
     // 평면 생성
@@ -228,7 +230,9 @@ void Context::Render(){
     ImGui::End();
 
     // 생성한 프레임 버퍼 바인딩
-    m_framebuffer->Bind();
+    // 우리가 만든 프레임버퍼는 멀티 샘플이 아니므로 MSAA를 할 수 없다.
+    // 그래서 이 부분은 주석 처리 했다.
+    // m_framebuffer->Bind();
 
     // 윈도우 초기화 수행
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
@@ -390,18 +394,21 @@ void Context::Render(){
     // 이 텍스쳐로 화면을 꽉 채우는 사각형을 그린다. - 결과는 이전과 다름이 없다.
     // 그러나 저 사각형의 transform을 조정함으로써 화면을 작거나 크게, 회전 시키는 등 다양한 변형이 가능하다.
     // 뿐만 아니라 렌더링된 화면이 텍스쳐이므로 다른 곳에 활용할 수도 있다.
-    Framebuffer::BindToDefault();
 
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+    // 우리가 만든 프레임버퍼는 멀티 샘플이 아니므로 MSAA를 할 수 없다.
+    // 그래서 이 부분은 주석 처리 했다.
+    // Framebuffer::BindToDefault();
+
+    // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
     // postProgram을 사용해서 렌더링된 화면에 포스트 프로세싱을 할 수 있다. (다른 fragment shader를 사용)
-    m_postProgram->Use();
-    m_postProgram->SetUniform("transform",
-        glm::scale(glm::mat4(1.0f), glm::vec3(2.0f, 2.0f, 1.0f))); // 크기가 2인 이유는 화면상 좌표의 범위가 -1 ~ 1이기 때문
-    m_framebuffer->GetColorAttachment()->Bind();
-    m_postProgram->SetUniform("tex", 0);
-    m_postProgram->SetUniform("gamma", m_gamma);
-    m_plane->Draw(m_postProgram.get());
+    // m_postProgram->Use();
+    // m_postProgram->SetUniform("transform",
+    //     glm::scale(glm::mat4(1.0f), glm::vec3(2.0f, 2.0f, 1.0f))); // 크기가 2인 이유는 화면상 좌표의 범위가 -1 ~ 1이기 때문
+    // m_framebuffer->GetColorAttachment()->Bind();
+    // m_postProgram->SetUniform("tex", 0);
+    // m_postProgram->SetUniform("gamma", m_gamma);
+    // m_plane->Draw(m_postProgram.get());
 }
 
 void Context::Reshape(int width, int height) {

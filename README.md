@@ -457,3 +457,42 @@ glVertexAttribDivisor(2, 1);
 ```
 
 - vertex shader에서는 layout (location = 2) in vec2 aOffset; 부분을 추가해 준다.
+
+### Anti-aliasing
+
+- 앨리어싱 현상이란 렌더링된 오브젝트의 경계 부분에 도트로 된 계단이 보이는 현상을 말한다.
+- 이 현상이 발생하는 이유는 rasterization 과정에서 어떤 픽셀 부분을 채울 것인지 말 것인지 2가지 경우만 고려하기 때문이다.
+- 그래서 이러한 계단 현상을 없애기 위한 방법들이 Anti-aliasing이다.
+
+#### Anti-aliasing 기법
+
+- SSAA : 원래 해상도보다 더 큰 해상도로 렌더링한 다음 이를 다운 샘플링(이웃하는 픽셀들의 색상 평균을 낸다.)해서 계단 현상을 없애는 기법이다. 큰 해상도로 렌더링할 경우에는 비용이 매우 커지게 된다.(2배 커지면, 4배의 비용이 든다.)
+- MSAA : OpenGL에서 기본적으로 제공하는 기법이다. 한 픽셀에 여러 개의 기준 위치를 정하고 그 기준 위치들이 삼각형 안에 몇 개 속하는지 각 픽셀마다 조사한다. 이렇게 해서 전체 기준 위치 중에서 삼각형에 몇 개의 위치가 들어갔는지에 따라 알파 값을 조절해서 계단 현상을 제거한다.
+
+#### OpenGL에서 사용하기
+
+```c++
+// glfw에 MSAA를 사용할 것을 미리 알린다. - 다른 종류의 프레임버퍼가 필요하기 때문이다.
+// 아래 경우에는 픽셀 하나 당 기준 위치를 4개로 한다.
+glfwWindowHint(GLFW_SAMPLES, 4);
+
+// 코드에서 glEnable을 통해 MSAA를 활성화한다.
+glEnable(GL_MULTISAMPLE);
+```
+
+- 우리가 만든 프레임버퍼는 멀티 샘플이 아니므로 MSAA의 효과를 볼 수 없어서 주석 처리를 해야 한다.
+- 만약 직접 만든 프레임버퍼에 MSAA를 적용하고 싶다면 target을 GL_TEXTURE_2D_MULTISAMPLE로 지정해야 하고 다른 함수로 초기화 해준다.
+
+```c++
+// creating texture for render target
+glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, tex);
+glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, samples, GL_RGBA, width, height, GL_TRUE);
+glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, 0);
+// attaching texture to framebuffer
+glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+GL_TEXTURE_2D_MULTISAMPLE, tex, 0);
+// 렌더 버퍼도 다른 함수를 사용
+glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_DEPTH24_STENCIL8, width, height);
+```
+
+- 쉐이더의 sampler2D 타입은 GL_TEXTURE_2D_MULTISAMPLE을 받을 수 없기 때문에 이를 GL_TEXTURE_2D로 변환하는 작업이 필요하다. 그 작업 과정은 이 사이트를 참고 : <https://learnopengl.com/Advanced-OpenGL/Anti-Aliasing>
