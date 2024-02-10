@@ -496,3 +496,17 @@ glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_DEPTH24_STENCIL8, width,
 ```
 
 - 쉐이더의 sampler2D 타입은 GL_TEXTURE_2D_MULTISAMPLE을 받을 수 없기 때문에 이를 GL_TEXTURE_2D로 변환하는 작업이 필요하다. 그 작업 과정은 이 사이트를 참고 : <https://learnopengl.com/Advanced-OpenGL/Anti-Aliasing>
+
+### Blinn-Phong Shading
+
+- 기존의 Phong shading은 specular shininess 값이 작은 경우 highlight 부분이 잘려서 빛이 도중에 끊어지는 느낌이 있다.
+- 그 이유는 specular를 계산할 때, view와 reflection 간의 각도가 90도 보다 커지면, dot product 값이 0보다 작아져 cutoff가 생기고 빛이 끊기는 느낌이 생긴다.
+- 그래서 Blinn이란 사람이 view와 light를 이등분하는 halfway 벡터와 normal 벡터 간의 사잇각으로 계산할 것을 제안했는데, 이를 Blinn-Phong shading이라고 한다.
+
+```glsl
+vec3 specColor = texture2D(material.specular, texCoord).xyz;
+float spec = 0.0f;
+vec3 viewDir = normalize(viewPos - position);
+vec3 halfDir = normalize(lightDir + viewDir);
+spec = pow(max(dot(halfDir, pixelNorm), 0.0), material.shininess);
+```

@@ -95,7 +95,9 @@ private:
     };
     Light m_light;
 
+    // mode setting
     bool m_flashLightMode { false };
+    bool m_blinn { false };
 
     // grass Rendering position
     std::vector<glm::vec3> m_grassPos;
