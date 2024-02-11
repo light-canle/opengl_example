@@ -22,6 +22,7 @@ add_executable(${PROJECT_NAME}
     src/mesh.cpp src/mesh.h
     src/model.cpp src/model.h
     src/framebuffer.cpp src/framebuffer.h
+    src/shadow_map.cpp src/shadow_map.h
     ) # 실행 파일 - 파일들을 새로이 만들 때마다 추가해 주어야 오류가 안 생긴다.
 
 include(Dependency.cmake)

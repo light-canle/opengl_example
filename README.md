@@ -510,3 +510,30 @@ vec3 viewDir = normalize(viewPos - position);
 vec3 halfDir = normalize(lightDir + viewDir);
 spec = pow(max(dot(halfDir, pixelNorm), 0.0), material.shininess);
 ```
+
+### Shadow Map
+
+- 3D 렌더링에서 그림자는 입체감을 높여주는 아주 중요한 요소이다.
+- 그림자를 렌더링하는 방법에는 여러 가지가 있는데, 그중에서 구현 난이도가 상대적으로 쉽고 성능을 크게 잡아먹지 않아 가장 많이 쓰는 방식이 Shadow map이다.
+- 빛의 관점에서 빛이 볼 수 있는 부분은 그림자가 지지 않을 것이고, 빛이 볼 수 없는 부분은 빛이 닿지 못해 그림자가 지게 될 것이다.
+- 이를 이용해서 빛의 관점, 즉 빛의 view, projection matrix를 이용해서 물체들의 depth map을 렌더링 한 것이 shadow map이 된다.
+
+#### Shadow map을 그리기
+
+- Shadow map도 일종의 텍스쳐이지만, 일반적인 텍스쳐는 픽셀 타입으로 GL_UNSIGNED_BYTE를 사용하지만, shadow map은 깊이 값을 저장해야 하므로 GL_FLOAT를 사용한다.
+- Shadow map을 렌더링 하기 위한 프레임 버퍼도 추가로 필요하다. 이 프레임 버퍼는 depth 값만 필요로 하므로, glFramebufferTexture2D() 함수에 GL_COLOR_ATTACHMENT0대신 GL_DEPTH_ATTACHMENT를 전달한다.
+- 그리고, color attachment가 없음을 명시해야 하므로 glDrawBuffer(GL_NONE), glReadBuffer(GL_NONE)를 이용한다.
+
+```c++
+// 쉐도우 맵을 위한 프레임 버퍼
+glGenFramebuffers(1, &m_framebuffer);
+Bind();
+
+m_shadowMap = Texture::Create(width, height, GL_DEPTH_COMPONENT, GL_FLOAT);
+m_shadowMap->SetFilter(GL_NEAREST, GL_NEAREST);
+m_shadowMap->SetWrap(GL_REPEAT, GL_REPEAT);
+
+glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, m_shadowMap->Get(), 0);
+glDrawBuffer(GL_NONE);
+glReadBuffer(GL_NONE);
+```

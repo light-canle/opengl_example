@@ -15,7 +15,7 @@ void Context::ProcessInput(GLFWwindow* window) {
     if (!m_cameraControl)
         return;
     // 카메라 앞/뒤 이동
-    const float cameraSpeed = 0.01f;
+    const float cameraSpeed = 0.05f;
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
         m_cameraPos += cameraSpeed * m_cameraFront;
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
@@ -148,7 +148,57 @@ bool Context::Init() {
     m_skyboxProgram = Program::Create("./shader/skybox.vert", "./shader/skybox.frag");
     m_envMapProgram = Program::Create("./shader/env_map.vert", "./shader/env_map.frag");
 
+    // 쉐도우 맵
+    m_shadowMap = ShadowMap::Create(1024, 1024);
+
     return true;
+}
+
+void Context::DrawScene(const glm::mat4& view, const glm::mat4& projection, const Program* program) {
+    // 바닥과 3개의 상자의 transform을 각각 지정한 후 그린다.
+    // 바닥
+    program->Use();
+    auto modelTransform =
+        glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.5f, 0.0f)) *
+        glm::scale(glm::mat4(1.0f), glm::vec3(10.0f, 1.0f, 10.0f));
+    auto transform = projection * view * modelTransform;
+    program->SetUniform("transform", transform);
+    program->SetUniform("modelTransform", modelTransform);
+    m_planeMaterial->SetToProgram(program);
+    m_box->Draw(program);
+
+    // 1번째 상자
+    modelTransform =
+        glm::translate(glm::mat4(1.0f), glm::vec3(-1.0f, 0.75f, -4.0f)) *
+        glm::rotate(glm::mat4(1.0f), glm::radians(30.0f), glm::vec3(0.0f, 1.0f, 0.0f)) *
+        glm::scale(glm::mat4(1.0f), glm::vec3(1.5f, 1.5f, 1.5f));
+    transform = projection * view * modelTransform;
+    program->SetUniform("transform", transform);
+    program->SetUniform("modelTransform", modelTransform);
+    m_box1Material->SetToProgram(program);
+    m_box->Draw(program);
+
+    // 2번째 상자
+    modelTransform =
+        glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.75f, 2.0f)) *
+        glm::rotate(glm::mat4(1.0f), glm::radians(20.0f), glm::vec3(0.0f, 1.0f, 0.0f)) *
+        glm::scale(glm::mat4(1.0f), glm::vec3(1.5f, 1.5f, 1.5f));
+    transform = projection * view * modelTransform;
+    program->SetUniform("transform", transform);
+    program->SetUniform("modelTransform", modelTransform);
+    m_box2Material->SetToProgram(program);
+    m_box->Draw(program);
+
+    // 3번째 상자 - 2번 상자와 동일한 텍스쳐를 사용
+    modelTransform =
+        glm::translate(glm::mat4(1.0f), glm::vec3(3.0f, 1.75f, -2.0f)) *
+        glm::rotate(glm::mat4(1.0f), glm::radians(50.0f), glm::vec3(0.0f, 1.0f, 0.0f)) *
+        glm::scale(glm::mat4(1.0f), glm::vec3(1.5f, 1.5f, 1.5f));
+    transform = projection * view * modelTransform;
+    program->SetUniform("transform", transform);
+    program->SetUniform("modelTransform", modelTransform);
+    m_box2Material->SetToProgram(program);
+    m_box->Draw(program);
 }
 
 // 렌더링 담당 함수
@@ -196,12 +246,35 @@ void Context::Render(){
         // 큐브 회전 여부
         ImGui::Checkbox("animation", &m_animation);
 
-        // 화면 미니맵
-        float aspectRatio = (float)m_width / m_height;
-        ImGui::Image((ImTextureID)m_framebuffer->GetColorAttachment()->Get(), 
-            ImVec2(150 * aspectRatio, 150 * aspectRatio));
+        // 쉐도우 맵 시각화
+        ImGui::Image((ImTextureID)m_shadowMap->GetShadowMap()->Get(),
+            ImVec2(256, 256), ImVec2(0, 1), ImVec2(1, 0));
     }
     ImGui::End();
+
+    // 쉐도우 맵 렌더링
+    // 빛의 시점에서 그림을 그리기 위해 light의 view, projection을 구함
+    auto lightView = glm::lookAt(m_light.position,
+        m_light.position + m_light.direction,
+        glm::vec3(0.0f, 1.0f, 0.0f));
+    auto lightProjection = glm::perspective(
+        glm::radians((m_light.cutoff[0] + m_light.cutoff[1]) * 2.0f), // fov 각도
+        1.0f, 1.0f, 20.0f);
+
+    // 프레임 버퍼 바인딩
+    m_shadowMap->Bind();
+    glClear(GL_DEPTH_BUFFER_BIT);
+    // 프레임 버퍼 크기로 glViewport 초기화
+    glViewport(0, 0,
+        m_shadowMap->GetShadowMap()->GetWidth(),
+        m_shadowMap->GetShadowMap()->GetHeight());
+    // depth map을 계산할 쉐이더 프로그램
+    m_simpleProgram->Use();
+    m_simpleProgram->SetUniform("color", glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
+    DrawScene(lightView, lightProjection, m_simpleProgram.get());
+
+    Framebuffer::BindToDefault();
+    glViewport(0, 0, m_width, m_height);
 
     // 생성한 프레임 버퍼 바인딩
     // 우리가 만든 프레임버퍼는 멀티 샘플이 아니므로 MSAA를 할 수 없다.
@@ -276,37 +349,7 @@ void Context::Render(){
     m_program->SetUniform("blinn", (m_blinn ? 1 : 0));
 
     // 바닥과 3개의 상자의 transform을 각각 지정한 후 그린다.
-    // 바닥
-    auto modelTransform = 
-        glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.5f, 0.0f)) * 
-        glm::scale(glm::mat4(1.0f), glm::vec3(10.0f, 1.0f, 10.0f));
-    auto transform = projection * view * modelTransform;
-    m_program->SetUniform("transform", transform);
-    m_program->SetUniform("modelTransform", modelTransform);
-    m_planeMaterial->SetToProgram(m_program.get());
-    m_box->Draw(m_program.get());
-
-    // 1번째 상자
-    modelTransform =
-        glm::translate(glm::mat4(1.0f), glm::vec3(-1.0f, 0.75f, -4.0f)) *
-        glm::rotate(glm::mat4(1.0f), glm::radians(30.0f), glm::vec3(0.0f, 1.0f, 0.0f)) *
-        glm::scale(glm::mat4(1.0f), glm::vec3(1.5f, 1.5f, 1.5f));
-    transform = projection * view * modelTransform;
-    m_program->SetUniform("transform", transform);
-    m_program->SetUniform("modelTransform", modelTransform);
-    m_box1Material->SetToProgram(m_program.get());
-    m_box->Draw(m_program.get());
-
-    // 2번째 상자
-    modelTransform =
-        glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.75f, 2.0f)) *
-        glm::rotate(glm::mat4(1.0f), glm::radians(20.0f), glm::vec3(0.0f, 1.0f, 0.0f)) *
-        glm::scale(glm::mat4(1.0f), glm::vec3(1.5f, 1.5f, 1.5f));
-    transform = projection * view * modelTransform;
-    m_program->SetUniform("transform", transform);
-    m_program->SetUniform("modelTransform", modelTransform);
-    m_box2Material->SetToProgram(m_program.get());
-    m_box->Draw(m_program.get());
+    DrawScene(view, projection, m_program.get());
 
     // 장면 그리기가 끝난 뒤 기본 프레임 버퍼로 바인딩을 바꾼다. 앞에서 렌더링한 장면이 텍스쳐로 저장되는데
     // 이 텍스쳐로 화면을 꽉 채우는 사각형을 그린다. - 결과는 이전과 다름이 없다.

@@ -1,0 +1,43 @@
+#include "shadow_map.h"
+
+ShadowMapUPtr ShadowMap::Create(int width, int height) {
+    auto shadowMap = ShadowMapUPtr(new ShadowMap());
+    if (!shadowMap->Init(width, height))
+        return nullptr;
+    return std::move(shadowMap);
+}
+
+ShadowMap::~ShadowMap() {
+    if (m_framebuffer) {
+        glDeleteFramebuffers(1, &m_framebuffer);
+    }
+}
+
+void ShadowMap::Bind() const {
+    glBindFramebuffer(GL_FRAMEBUFFER, m_framebuffer);
+}
+
+bool ShadowMap::Init(int width, int height) {
+    glGenFramebuffers(1, &m_framebuffer);
+    Bind();
+
+    // RBGA가 아닌 DEPTH_COMPONENT를 넣는다.
+    m_shadowMap = Texture::Create(width, height, GL_DEPTH_COMPONENT, GL_FLOAT);
+    m_shadowMap->SetFilter(GL_NEAREST, GL_NEAREST);
+    m_shadowMap->SetWrap(GL_REPEAT, GL_REPEAT);
+
+    // Color가 아닌 Depth attachment를 넣어서 쉐도우 맵을 넣는다.
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+        GL_TEXTURE_2D, m_shadowMap->Get(), 0);
+    // Draw와 Read 버퍼를 꺼서 그림을 그리지 않을 것임을 명시한다.
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+    auto status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (status != GL_FRAMEBUFFER_COMPLETE) {
+        SPDLOG_ERROR("failed to complete shadow map framebuffer: {:x}", status);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        return false;
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    return true;
+}

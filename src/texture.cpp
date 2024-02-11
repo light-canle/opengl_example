@@ -1,9 +1,10 @@
 #include "texture.h"
 
-TextureUPtr Texture::Create(int width, int height, uint32_t format) {
+// 일반 텍스쳐는 type에 GL_UNSIGNED_BYTE를 쓰고, 쉐도우 맵은 GL_FLOAT를 쓴다.
+TextureUPtr Texture::Create(int width, int height, uint32_t format, uint32_t type) {
     auto texture = TextureUPtr(new Texture());
     texture->CreateTexture();
-    texture->SetTextureFormat(width, height, format);
+    texture->SetTextureFormat(width, height, format, type);
     texture->SetFilter(GL_LINEAR, GL_LINEAR);
     return std::move(texture);
 }
@@ -61,28 +62,30 @@ void Texture::SetTextureFromImage(const Image* image) {
         case 3: format = GL_RGB; break;
     }
 
-    // 크기와 포맷 설정
+    // 크기와 포맷, 픽셀 타입 설정
     m_width = image->GetWidth();
     m_height = image->GetHeight();
     m_format = format;
+    m_type = GL_UNSIGNED_BYTE;
 
     // 이미지 데이터를 GPU에 복사
     glTexImage2D(GL_TEXTURE_2D, 0, m_format,
         m_width, m_height, 0, // 이미지 가로, 세로, 보더 크기(이미지 주위를 감싸는 테두리)
-        format, GL_UNSIGNED_BYTE, image->GetData()); // 이미지 데이터 타입, 1채널 데이터 타입, 실제 이미지 데이터
+        format, m_type, image->GetData()); // 이미지 데이터 타입, 1채널 데이터 타입, 실제 이미지 데이터
 
     // 텍스쳐를 위한 mipmap(이미지에 대한 더 작은 사본)을 만들어냄
     glGenerateMipmap(GL_TEXTURE_2D);
 }
 
-void Texture::SetTextureFormat(int width, int height, uint32_t format) {
+void Texture::SetTextureFormat(int width, int height, uint32_t format, uint32_t type) {
     m_width = width;
     m_height = height;
     m_format = format;
+    m_type = type;
 
     glTexImage2D(GL_TEXTURE_2D, 0, m_format,
         m_width, m_height, 0,
-        m_format, GL_UNSIGNED_BYTE, nullptr);
+        m_format, type, nullptr);
 }
 
 /* == 큐브맵 텍스쳐 함수 == */

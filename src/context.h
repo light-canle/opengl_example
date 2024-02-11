@@ -10,6 +10,7 @@
 #include "mesh.h"
 #include "model.h"
 #include "framebuffer.h"
+#include "shadow_map.h"
 
 CLASS_PTR(Context)
 CLASS_PTR(Buffer)
@@ -28,6 +29,9 @@ public:
     void MouseMove(double x, double y);
     // 마우스 클릭 처리 함수
     void MouseButton(int button, int action, double x, double y);
+    // 쉐이더 프로그램을 이용해서 그림을 그리는 함수
+    // 카메라의 view, projection matrix와 프로그램을 인자로 받음
+    void DrawScene(const glm::mat4& view, const glm::mat4& projection, const Program* program);
 private:
     Context() {}
     // 초기화 함수
@@ -84,11 +88,11 @@ private:
 
     // light (조명)
     struct Light {
-        glm::vec3 position { glm::vec3(1.0f, 4.0f, 4.0f) };
-        glm::vec3 direction { glm::vec3(-1.0f, -1.0f, -1.0f) };
+        glm::vec3 position { glm::vec3(2.0f, 4.0f, 4.0f) };
+        glm::vec3 direction { glm::vec3(-0.5f, -1.5f, -1.0f) };
         // 단위는 육십분법, 1번째는 inner, 2번째는 outer와 inner의 차이 각도가 들어간다.
-        glm::vec2 cutoff { glm::vec2(120.0f, 5.0f) };
-        float distance { 128.0f };
+        glm::vec2 cutoff { glm::vec2(50.0f, 5.0f) };
+        float distance { 150.0f };
         glm::vec3 ambient { glm::vec3(0.1f, 0.1f, 0.1f) };
         glm::vec3 diffuse { glm::vec3(0.8f, 0.8f, 0.8f) };
         glm::vec3 specular { glm::vec3(1.0f, 1.0f, 1.0f) };
@@ -97,12 +101,15 @@ private:
 
     // mode setting
     bool m_flashLightMode { false };
-    bool m_blinn { false };
+    bool m_blinn { true };
 
     // grass Rendering position
     std::vector<glm::vec3> m_grassPos;
     BufferUPtr m_grassPosBuffer; // instance 별로 다른 위치와 회전각 정보를 저장
     VertexLayoutUPtr m_grassInstance;
+
+    // shadow map
+    ShadowMapUPtr m_shadowMap;
 };
 
 #endif
