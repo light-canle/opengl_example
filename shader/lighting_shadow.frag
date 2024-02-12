@@ -31,7 +31,7 @@ uniform int blinn;
 uniform sampler2D shadowMap; // depth map을 입력받기 위한 sampler2D
 
 // 해당 칸의 그림자의 세기를 계산해서 반환(0~1)
-float ShadowCalculation(vec4 fragPosLight) {
+float ShadowCalculation(vec4 fragPosLight, vec3 normal, vec3 lightDir) {
     // perform perspective divide
     vec3 projCoords = fragPosLight.xyz / fragPosLight.w;
     // transform to [0,1] range ([-1, 1]을 [0, 1]로 변경)
@@ -42,7 +42,8 @@ float ShadowCalculation(vec4 fragPosLight) {
     // get depth of current fragment from light’s perspective - 빛의 위치를 기준으로 depth를 구함
     float currentDepth = projCoords.z;
     // check whether current frag pos is in shadow - 둘을 비교해서 그림자의 여부를 결정
-    float shadow = currentDepth > closestDepth ? 1.0 : 0.0;
+    float bias = max(0.02 * (1.0 - dot(normal, lightDir)), 0.001); // bias는 0.001 ~ 0.02 사이의 가변값이 됨
+    float shadow = currentDepth - bias > closestDepth ? 1.0 : 0.0;
     return shadow;
 }
 
@@ -80,7 +81,7 @@ void main() {
         vec3 specular = spec * specColor * light.specular;
         // 거기에 추가적으로 그림자 세기를 계산해 준다.
         // 0이면 그림자가 없는 것이고, 1이면 완전히 그림자가 져서 검게 보인다.
-        float shadow = ShadowCalculation(fs_in.fragPosLight);
+        float shadow = ShadowCalculation(fs_in.fragPosLight, pixelNorm, lightDir);
 
         result += (diffuse + specular) * intensity * (1.0 - shadow);
     }

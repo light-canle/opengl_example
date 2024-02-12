@@ -569,3 +569,28 @@ result += (diffuse + specular) * intensity * (1.0 - shadow);
 ```
 
 - 그러나 이렇게 만든 후 실행을 하게 되면(12-3-1의 코드를 실행해 볼 것), 그림자가 지지 않아야 되는 부분에 검은색 줄무늬가 생기는데 이는 shadow acne라고 하는 현상이다.
+- 이 현상이 발생하게 되는 원인은 쉐도우 맵의 크기가 한정적이기 때문이다. 그래서 광원으로부터 거리가 먼 픽셀들은 동일한 depth값을 가질 가능성이 높아지게 되고 이렇게 정확하지 않은 depth값으로 인해 줄무늬 형상이 나타나게 되는 것이다.
+- 이를 해결하기 위해 closestDepth 값에 작은 편향치(bias)를 더한 것을 currentDepth와 비교하는 방식을 사용할 수 있다. (코드에서는 bias를 이항했다.)
+
+```glsl
+float bias = 0.005;
+float shadow = currentDepth - bias > closestDepth ? 1.0 : 0.0;
+```
+
+- 이 두 줄을 추가하면 대부분의 경우에서 shadow acne이 사라지게 된다. 그러나 빛의 방향과 표면의 법선 벡터가 크게 차이나는 경우(빛이 표면에 거의 수평하게 입사되는 경우)에는 여전히 shadow acne이 남아있게 된다. 이를 해결하기 위해서는 빛의 방향과 표면 법선 벡터의 차이가 크면 bias도 크게 주는 방식을 이용할 수 있다.
+
+```glsl
+// vec3 normal, vec3 lightDir를 인자에 추가한다.
+float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005); // bias는 0.005 ~ 0.05 사이의 가변값이 됨
+
+// main 함수에서의 호출 부분
+float shadow = ShadowCalculation(fs_in.fragPosLight, pixelNorm, lightDir);
+```
+
+- 이렇게 하면 빛의 방향과 면의 각도가 차이가 크더라도 조정된 bias에 의해 shadow acne는 나타나지 않게 된다. 안타깝게도 커진 bias는 새로운 문제를 야기한다.
+- bias가 클 때, 그림자가 물체의 위치와 약간 떨어져서 그려지게 되는데 이 현상을 Peter panning이라고 한다.
+- 이를 막기 위해서는 bias의 범위를 잘 조절해서 너무 커지지 않게 하거나, shadow map을 그릴 때 face culling을 해서 뒷면만 그리게 하도록 하면 된다. (강의에서는 첫 번째 방법으로, bias를 0.001~0.02 범위로 조절 했다.)
+
+```glsl
+float bias = max(0.02 * (1.0 - dot(normal, lightDir)), 0.001); // bias는 0.001 ~ 0.02 사이의 가변값이 됨
+```
