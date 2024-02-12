@@ -160,7 +160,7 @@ void Context::DrawScene(const glm::mat4& view, const glm::mat4& projection, cons
     program->Use();
     auto modelTransform =
         glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.5f, 0.0f)) *
-        glm::scale(glm::mat4(1.0f), glm::vec3(10.0f, 1.0f, 10.0f));
+        glm::scale(glm::mat4(1.0f), glm::vec3(40.0f, 1.0f, 40.0f));
     auto transform = projection * view * modelTransform;
     program->SetUniform("transform", transform);
     program->SetUniform("modelTransform", modelTransform);
@@ -241,6 +241,8 @@ void Context::Render(){
             ImGui::Checkbox("flash light", &m_flashLightMode);
             // Blinn-Phong Shading on/off
             ImGui::Checkbox("l.blinn", &m_blinn);
+            // directional light on/off
+            ImGui::Checkbox("l.directional", &m_light.directional);
         }
         
         // 큐브 회전 여부
@@ -257,9 +259,11 @@ void Context::Render(){
     auto lightView = glm::lookAt(m_light.position,
         m_light.position + m_light.direction,
         glm::vec3(0.0f, 1.0f, 0.0f));
-    auto lightProjection = glm::perspective(
-        glm::radians((m_light.cutoff[0] + m_light.cutoff[1]) * 2.0f), // fov 각도
-        1.0f, 1.0f, 20.0f);
+    // directional light는 projectional을 orthogonal로 하고, spot light는 perspective로 한다.
+    auto lightProjection = m_light.directional ?
+        glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, 1.0f, 30.0f) : 
+        glm::perspective( glm::radians((m_light.cutoff[0] + m_light.cutoff[1]) * 2.0f), // fov 각도
+            1.0f, 1.0f, 40.0f);
 
     // 프레임 버퍼 바인딩
     m_shadowMap->Bind();
@@ -295,7 +299,7 @@ void Context::Render(){
     // 큐브 회전을 위한 새로운 MVP 행렬
     // 화각(FOV), 종횡비(aspect ratio), near~far 설정
     auto projection = glm::perspective(glm::radians(45.0f),
-      (float)m_width / (float)m_height, 0.01f, 100.0f);
+      (float)m_width / (float)m_height, 0.01f, 150.0f);
 
     // 카메라의 위치, 타겟 위치를 이용한 view 행렬 계산
     auto view = glm::lookAt(m_cameraPos, m_cameraFront + m_cameraPos, m_cameraUp);
@@ -338,6 +342,7 @@ void Context::Render(){
     // 쉐이더 uniform 지정 (light 설정)
     m_lightingShadowProgram->Use();
     m_lightingShadowProgram->SetUniform("viewPos", m_cameraPos);
+    m_lightingShadowProgram->SetUniform("light.directional", m_light.directional ? 1 : 0);
     m_lightingShadowProgram->SetUniform("light.position", m_light.position);
     m_lightingShadowProgram->SetUniform("light.direction", m_light.direction);
     m_lightingShadowProgram->SetUniform("light.cutoff", glm::vec2(

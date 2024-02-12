@@ -88,6 +88,7 @@ private:
 
     // light (조명)
     struct Light {
+        bool directional { false }; // directional light 인지 여부 (false : spot light)
         glm::vec3 position { glm::vec3(2.0f, 4.0f, 4.0f) };
         glm::vec3 direction { glm::vec3(-0.5f, -1.5f, -1.0f) };
         // 단위는 육십분법, 1번째는 inner, 2번째는 outer와 inner의 차이 각도가 들어간다.

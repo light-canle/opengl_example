@@ -140,3 +140,8 @@ bool CubeTexture::InitFromImages(const std::vector<Image*> &images) {
 
     return true;
 }
+
+void Texture::SetBorderColor(const glm::vec4& color) const {
+    // 보더의 색깔 지정
+    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, glm::value_ptr(color));
+}

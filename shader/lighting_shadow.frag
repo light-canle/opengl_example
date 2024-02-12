@@ -11,6 +11,7 @@ in VS_OUT {
 
 uniform vec3 viewPos;
 struct Light {
+    int directional; // directional light 인지 여부
     vec3 position;
     vec3 direction;
     vec2 cutoff;
@@ -43,7 +44,16 @@ float ShadowCalculation(vec4 fragPosLight, vec3 normal, vec3 lightDir) {
     float currentDepth = projCoords.z;
     // check whether current frag pos is in shadow - 둘을 비교해서 그림자의 여부를 결정
     float bias = max(0.02 * (1.0 - dot(normal, lightDir)), 0.001); // bias는 0.001 ~ 0.02 사이의 가변값이 됨
-    float shadow = currentDepth - bias > closestDepth ? 1.0 : 0.0;
+    // 현재 픽셀과 인접한 8개의 픽셀에서 shadow 값을 구한 뒤, 그 9개의 평균을 구한다.
+    float shadow = 0.0;
+    vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
+    for(int x = -1; x <= 1; ++x) {
+        for (int y = -1; y <= 1; ++y) {
+            float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
+            shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
+        }
+    }
+    shadow /= 9.0;
     return shadow;
 }
 
@@ -52,15 +62,25 @@ void main() {
     vec3 texColor = texture2D(material.diffuse, fs_in.texCoord).xyz;
     vec3 ambient = texColor * light.ambient;
 
-    float dist = length(light.position - fs_in.fragPos);
-    vec3 distPoly = vec3(1.0, dist, dist*dist);
-    float attenuation = 1.0 / dot(distPoly, light.attenuation);
-    vec3 lightDir = (light.position - fs_in.fragPos) / dist;
-
+    vec3 lightDir;
     vec3 result = ambient;
-    float theta = dot(lightDir, normalize(-light.direction));
-    float intensity = clamp((theta - light.cutoff[1]) / (light.cutoff[0] - light.cutoff[1]), 0.0, 1.0);
+    float intensity = 1.0;
+    float attenuation = 1.0;
+    // directional light - light projection을 orthogonal로 변경
+    if (light.directional == 1){
+        lightDir = normalize(-light.direction);
+    }
+    // spot light - light projection을 perspective로 변경
+    else {
+        float dist = length(light.position - fs_in.fragPos);
+        vec3 distPoly = vec3(1.0, dist, dist*dist);
+        attenuation = 1.0 / dot(distPoly, light.attenuation);
+        lightDir = (light.position - fs_in.fragPos) / dist;
 
+        float theta = dot(lightDir, normalize(-light.direction));
+        intensity = clamp((theta - light.cutoff[1]) / (light.cutoff[0] - light.cutoff[1]), 0.0, 1.0);
+    }
+    
     if (intensity > 0.0) {
         vec3 pixelNorm = normalize(fs_in.normal);
         float diff = max(dot(pixelNorm, lightDir), 0.0);

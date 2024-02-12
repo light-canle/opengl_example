@@ -24,7 +24,8 @@ bool ShadowMap::Init(int width, int height) {
     // RBGA가 아닌 DEPTH_COMPONENT를 넣는다.
     m_shadowMap = Texture::Create(width, height, GL_DEPTH_COMPONENT, GL_FLOAT);
     m_shadowMap->SetFilter(GL_NEAREST, GL_NEAREST);
-    m_shadowMap->SetWrap(GL_REPEAT, GL_REPEAT);
+    m_shadowMap->SetWrap(GL_CLAMP_TO_BORDER, GL_CLAMP_TO_BORDER);
+    m_shadowMap->SetBorderColor(glm::vec4(1.0f));
 
     // Color가 아닌 Depth attachment를 넣어서 쉐도우 맵을 넣는다.
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,

@@ -19,6 +19,8 @@ public:
     void SetFilter(uint32_t minFilter, uint32_t magFilter) const;
     // Wrap 모드 설정
     void SetWrap(uint32_t sWrap, uint32_t tWrap) const;
+    // Wrapping이 GL_CLAMP_TO_BORDER일 때, border의 색을 지정
+    void SetBorderColor(const glm::vec4& color) const;
 
     // 텍스쳐의 크기와 포맷, 픽셀 타입을 반환
     int GetWidth() const { return m_width; }

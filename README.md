@@ -594,3 +594,55 @@ float shadow = ShadowCalculation(fs_in.fragPosLight, pixelNorm, lightDir);
 ```glsl
 float bias = max(0.02 * (1.0 - dot(normal, lightDir)), 0.001); // bias는 0.001 ~ 0.02 사이의 가변값이 됨
 ```
+
+#### Directional light에서의 쉐도우 맵
+
+- Directional light의 경우에는 light projection을 orthogonal로 바꾼다. 그리고 attenuation은 항상 1.0으로 두며, 모든 방향에서 똑같아야 하므로 light.position 속성은 사용하지 않고, light.direction만 사용한다.
+
+```glsl
+vec3 result = ambient;
+vec3 lightDir;
+float intensity = 1.0;
+float attenuation = 1.0;
+// Directional light - struct Light에 int directional을 추가함
+if (light.directional == 1) {
+    lightDir = normalize(-light.direction);
+}
+```
+
+#### Oversampling
+
+- 위의 코드에서 바닥의 크기를 10 x 10에서 40 x 40으로 확장한 뒤에 directional light를 켜게 되면 directional light여서 바닥에 그림자가 생기면 안되지만, 바닥 끝 부분에 그림자가 있는 것을 확인할 수 있고, 다른 쪽에는 큐브가 없는 곳임에도 큐브의 그림자가 렌더링 된다. 이러한 비정상적인 그림자를 Oversampling이라고 한다.
+- 원인은 쉐도우 맵을 위한 텍스쳐를 지정할 때 wrapping 방식으로 GL_REPEAT를 사용하고 있어서 범위를 벗어난 경우 원래 쉐도우 맵을 반복해서 적용시키기 때문이다. 해결을 위해서는 GL_CLAMP_TO_BORDER를 사용하고 Border의 색을 지정해 주면 된다. 색상을 흰색으로 지정해주면, 쉐도우 맵의 범위를 벗어난 영역에는 그림자가 생기지 않아서 비정상적인 그림자가 렌더링되지 않는다.
+
+```c++
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, glm::vec4(1.0f));
+```
+
+#### Jagged edge와 PCF
+
+- 12-3-2의 코드를 실행한 뒤 빛을 움직이다보면 만들어진 그림자가 부드럽지 않고 모서리가 계단 형태로 딱딱한 모양을 보이는 경우가 있는데 이를 Jagged edge라고 한다. 이 현상은 depth map의 해상도가 제한되어 있어서 나타난 문제이다.
+- 조금 더 부드러운 가장자리의 그림자를 만들기 위해 사용하는 기법이 PCF(Percentage Closer Filtering)이다.
+- depth map으로 부터 하나가 아닌 여러 개의 depth값을 수집한 뒤 수집한 depth들로 부터 계산된 shadow 값의 평균을 구한다.
+- 아래 코드에서는 기준 픽셀과 그 주위의 상하좌우 대각선 8개의 인접한 픽셀의 쉐도우 값을 구한 뒤 9개의 평균을 내고 있다. (fragment shader의 ShadowCalculation() 안에 넣어줌)
+- 이렇게 하면 가장자리 픽셀의 그림자가 조금 더 부드러워지는 효과가 있다.
+
+```glsl
+float shadow = 0.0;
+vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
+for(int x = -1; x <= 1; ++x) {
+    for (int y = -1; y <= 1; ++y) {
+        float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
+        shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
+    }
+}
+shadow /= 9.0;
+```
+
+#### (+고급) point light에서의 그림자
+
+- point light에서는 light를 기준으로 모든 방향에서 빛이 뻗어나가게 된다. 이렇게 되면 하나의 shadow map으로는 부족한데, 하나의 shadow map은 하나의 방향만 고려할 수 있기 때문이다.
+- 이때는 Omni-directional shadow map를 사용해서, 단일 shadow map이 아니라 6개의 shadow map이 모여있는 depth cube map을 생성하고, 쉐이더 맵에서는 samplerCube 타입으로 이를 받아와서 그림자를 계산해 준다.
+- 자세한 내용 : <https://learnopengl.com/Advanced-Lighting/Shadows/Point-Shadows>
