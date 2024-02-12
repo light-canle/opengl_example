@@ -150,7 +150,7 @@ bool Context::Init() {
 
     // 쉐도우 맵
     m_shadowMap = ShadowMap::Create(1024, 1024);
-
+    m_lightingShadowProgram = Program::Create("./shader/lighting_shadow.vert", "./shader/lighting_shadow.frag");
     return true;
 }
 
@@ -336,20 +336,29 @@ void Context::Render(){
     /* === 물체 렌더링 === */
     m_program->Use(); // 프로그램 사용
     // 쉐이더 uniform 지정 (light 설정)
-    m_program->SetUniform("viewPos", m_cameraPos);
-    m_program->SetUniform("light.position", lightPos);
-    m_program->SetUniform("light.direction", lightDir);
-    m_program->SetUniform("light.cutoff", glm::vec2(
+    m_lightingShadowProgram->Use();
+    m_lightingShadowProgram->SetUniform("viewPos", m_cameraPos);
+    m_lightingShadowProgram->SetUniform("light.position", m_light.position);
+    m_lightingShadowProgram->SetUniform("light.direction", m_light.direction);
+    m_lightingShadowProgram->SetUniform("light.cutoff", glm::vec2(
         cosf(glm::radians(m_light.cutoff[0])),
         cosf(glm::radians(m_light.cutoff[0] + m_light.cutoff[1]))));
-    m_program->SetUniform("light.attenuation", GetAttenuationCoeff(m_light.distance));
-    m_program->SetUniform("light.ambient", m_light.ambient);
-    m_program->SetUniform("light.diffuse", m_light.diffuse);
-    m_program->SetUniform("light.specular", m_light.specular);
-    m_program->SetUniform("blinn", (m_blinn ? 1 : 0));
+    m_lightingShadowProgram->SetUniform("light.attenuation", GetAttenuationCoeff(m_light.distance));
+    m_lightingShadowProgram->SetUniform("light.ambient", m_light.ambient);
+    m_lightingShadowProgram->SetUniform("light.diffuse", m_light.diffuse);
+    m_lightingShadowProgram->SetUniform("light.specular", m_light.specular);
+    m_lightingShadowProgram->SetUniform("blinn", (m_blinn ? 1 : 0));
+    // 빛의 projection, view 행렬을 전달
+    m_lightingShadowProgram->SetUniform("lightTransform", lightProjection * lightView);
+    // 쉐이더 맵은 3번 텍스쳐에 할당
+    glActiveTexture(GL_TEXTURE3);
+    m_shadowMap->GetShadowMap()->Bind();
+    // 쉐도우 맵의 ID를 전달
+    m_lightingShadowProgram->SetUniform("shadowMap", 3);
+    glActiveTexture(GL_TEXTURE0);
 
     // 바닥과 3개의 상자의 transform을 각각 지정한 후 그린다.
-    DrawScene(view, projection, m_program.get());
+    DrawScene(view, projection, m_lightingShadowProgram.get());
 
     // 장면 그리기가 끝난 뒤 기본 프레임 버퍼로 바인딩을 바꾼다. 앞에서 렌더링한 장면이 텍스쳐로 저장되는데
     // 이 텍스쳐로 화면을 꽉 채우는 사각형을 그린다. - 결과는 이전과 다름이 없다.

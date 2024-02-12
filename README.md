@@ -537,3 +537,35 @@ glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, m_sha
 glDrawBuffer(GL_NONE);
 glReadBuffer(GL_NONE);
 ```
+
+#### 그림자 직접 적용하기
+
+- 그림자를 그리기 위해서는 기존의 Blinn-Phong shading을 위해 사용된 코드를 변형한 새로운 쉐이더를 사용한다.
+- vertex shader에서는 빛의 translation을 저장하기 위한 mat4 uniform 값이 필요하다.
+- fragment shader에서는 쉐도우 맵을 받기 위한 sampler2D를 하나 더 만들어주고, Blinn-Phong shading을 통해 픽셀의 색상을 계산한 뒤, 추가적으로 그림자의 세기를 쉐도우 맵으로부터 받아오고, 그것을 픽셀과 곱해서 그림자를 구현해 준다.
+- 그림자 세기를 계산하는 함수에서는 빛의 위치를 기준으로 그릴 픽셀의 위치를 계산하고 shadowMap에서 해당 픽셀의 depth 값을 가져온다. 이때 저장된 depth 값이 빛의 위치를 기준으로 계산한 depth보다 작은 경우 그림자가 진 것으로 판단한다.
+
+```glsl
+float ShadowCalculation(vec4 fragPosLight) {
+    // perform perspective divide
+    vec3 projCoords = fragPosLight.xyz / fragPosLight.w;
+    // transform to [0,1] range
+    projCoords = projCoords * 0.5 + 0.5;
+    // get closest depth value from light’s perspective (using
+    // [0,1] range fragPosLight as coords)
+    float closestDepth = texture(shadowMap, projCoords.xy).r;
+    // get depth of current fragment from light’s perspective
+    float currentDepth = projCoords.z;
+    // check whether current frag pos is in shadow
+    float shadow = currentDepth > closestDepth ? 1.0 : 0.0;
+    return shadow;
+}
+
+// 거기에 추가적으로 그림자 세기를 계산해 준다.
+// 0이면 그림자가 없는 것이고, 1이면 완전히 그림자가 져서 검게 보인다.
+float shadow = ShadowCalculation(fs_in.fragPosLight);
+
+result += (diffuse + specular) * intensity * (1.0 - shadow);
+```
+
+- 그러나 이렇게 만든 후 실행을 하게 되면(12-3-1의 코드를 실행해 볼 것), 그림자가 지지 않아야 되는 부분에 검은색 줄무늬가 생기는데 이는 shadow acne라고 하는 현상이다.

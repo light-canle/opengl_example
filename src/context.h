@@ -110,6 +110,7 @@ private:
 
     // shadow map
     ShadowMapUPtr m_shadowMap;
+    ProgramUPtr m_lightingShadowProgram;
 };
 
 #endif
