@@ -646,3 +646,93 @@ shadow /= 9.0;
 - point light에서는 light를 기준으로 모든 방향에서 빛이 뻗어나가게 된다. 이렇게 되면 하나의 shadow map으로는 부족한데, 하나의 shadow map은 하나의 방향만 고려할 수 있기 때문이다.
 - 이때는 Omni-directional shadow map를 사용해서, 단일 shadow map이 아니라 6개의 shadow map이 모여있는 depth cube map을 생성하고, 쉐이더 맵에서는 samplerCube 타입으로 이를 받아와서 그림자를 계산해 준다.
 - 자세한 내용 : <https://learnopengl.com/Advanced-Lighting/Shadows/Point-Shadows>
+
+### Normal map
+
+- 현재 우리가 만든 물체를 빛으로 비추게 되면 텍스쳐 표면의 요철 모양대로 빛이 비추어지는 것이 아니라, 매끄러운 면에다가 스티커를 붙인 형태로 빛이 비춰 지고 있다.
+- 만약 물체의 디테일을 표현하고 싶다면 텍스쳐를 이루는 픽셀 하나하나마다 법선 벡터를 지정해 주면 되는데, 각 픽셀마다의 법선 벡터의 값을 저장하고 있는 것이 바로 normal map이 된다. normal map을 적용하면 vertex를 늘리지 않고도 높은 수준의 geometric detail을 표현할 수 있다.
+![normal_map0](/image/brickwall_normal.jpg)
+- 위의 사진이 normal map의 예시를 보여주는 사진이다. (source : <https://learnopengl.com/Advanced-Lighting/Normal-Mapping>) 대부분의 픽셀이 연한 파랑색임을 알 수 있는데, 이는 z축 방향으로 나오는 벡터 (0,0,1)를 표현한 것이다. 그리고 물체의 디테일한 부분에서는 법선 벡터가 달라야 하므로 다양한 색상으로 나타나 있는 것을 확인할 수 있다.
+- 이제 실제 코드에서는 어떻게 사용되어야 하는지를 보자.
+
+```glsl
+// 기존의 lighting 쉐이더에서는 하나의 vec3의 벡터를 받아왔지만, 여기서는 sampler2D 형태로 받아온다.
+uniform sampler2D normalMap;
+
+// main 함수 내부
+// 원래 텍스쳐에서 색을 들고옴
+vec3 texColor = texture(diffuse, texCoord).xyz;
+// normal map에서 값을 들고온 뒤, 범위를 [-1, 1]로 조정함
+vec3 pixelNorm = normalize(texture(normalMap, texCoord).xyz * 2.0 - 1.0);
+
+// 그리고 이렇게 구한 pixelNorm을 분산광과 반사광을 구하는데에 사용한다.
+// Note : 코드의 간소화를 위해서 원래 diffuse, reflect를 계산하는 식을 매우 단순화 했다.
+// diffuse 계산
+vec3 lightDir = normalize(lightPos - position);
+float diff = max(dot(pixelNorm, lightDir), 0.0);
+vec3 diffuse = diff * texColor * 0.8;
+
+// reflect 계산
+vec3 viewDir = normalize(viewPos - position);
+vec3 reflectDir = reflect(-lightDir, pixelNorm);
+float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
+vec3 specular = spec * vec3(0.5);
+```
+
+![normal_map1](/note_image/normal1.png)
+
+#### Tangent space
+
+- 현재 코드에서 평면을 90도 회전시키면 빛이 평면에 이상하게 렌더링되는 것을 확인할 수 있다.(빛이 위에 있으므로 평면 전체가 밝아져야 하지만 반은 어둡고, 반은 밝다.)
+![normal_map2](/note_image/normal2.png)
+- 이렇게 되는 이유는 normal map으로 부터 얻어낸 normal 값을 world space 기준으로 처리하고 있기 때문이다.
+- 이를 해결하기 위해 local space를 기준으로 처리하는 방식을 고려할 수 있지만, 이렇게 되면 normal map을 적용할 면이 기준 평면에 정렬되어 있어야 하므로 입체인 경우에는 쓸 수 없다.
+- 그래서 사용할 수 있는 방식이 tangent space를 이용하는 것이다.
+- tangent space는 법선 벡터에 수직인 평면이다.
+![normal_map3-1](/note_image/normal3-1.jpg)
+- tangent space에서 normal vector가 +z 방향임을 이용해서 이를 평면의 표면에 맞게 변환하는 방식을 통해서 어느 각도에서도 normal map이 정상적으로 적용되도록 할 수 있다.
+- 그러나 normal vector에 수직인 tangent vector는 무수히 많다. 그렇다면 기준이 되는 tangent vector를 어떻게 구할 수 있을까?
+- 그건 바로 아래 그림처럼 fragment를 이루는 삼각형의 세점의 텍스쳐 좌표를 이용하는 것이다.
+![normal_map3-2](/note_image/normal3-2.jpg)
+- 위의 그림의 식은 아래와 같이 쓸 수 있다. (<https://learnopengl.com/Advanced-Lighting/Normal-Mapping>)
+![normal_map4-1](/note_image/normal4-1.png)
+- 이를 행렬 계산식으로 바꾼 뒤 역행렬을 곱하면 아래와 같이 된다.
+![normal_map4-2](/note_image/normal4-2.png)
+- 이렇게 하면 접선 벡터를 구할 수 있고, 이를 normal map의 법선 벡터와 cross product(외적)을 해서 binormal vector를 구해 tangent space를 만들어 낼 수 있다.
+- 코드에서는 vertex의 속성으로 tangent 벡터를 추가하고, tangent 벡터를 위의 수식에 구하는 함수를 만들었다.(mesh.h, mesh.cpp 참고)
+- 그리고 vertex 쉐이더에서는 tangent와 normal vector를 받아서 계산해주는 부분을 추가한다. (normal.vert)
+
+```glsl
+layout (location = 1) in vec3 aNormal;
+layout (location = 3) in vec3 aTangent;
+
+// main 함수 내부
+normal = (invTransModelTransform * vec4(aNormal, 0.0)).xyz;
+tangent = (invTransModelTransform * vec4(aTangent, 0.0)).xyz;
+```
+
+- fragment 쉐이더에서는 받은 데이터를 토대로 tangent, normal, binormal 벡터를 구한뒤, 이들로 구성된 행렬을 normal map의 벡터와 곱해서 월드 좌표 기준의 normal vector 방향을 구한다. (normal.frag)
+
+```glsl
+// 원래 텍스쳐에서 색을 들고옴
+vec3 texColor = texture(diffuse, texCoord).xyz;
+// normal map에서 값을 들고온 뒤, 범위를 [-1, 1]로 조정함
+vec3 texNorm = texture(normalMap, texCoord).xyz * 2.0 - 1.0;
+// normal, tangent, binormal vector를 구함
+vec3 N = normalize(normal);
+vec3 T = normalize(tangent);
+vec3 B = cross(N, T);
+// TBN matrix
+mat3 TBN = mat3(T, B, N);
+// 원래 normal에다가 TBN matrix를 곱해서 월드 좌표 에서의 normal vector를 구함
+vec3 pixelNorm = normalize(TBN * texNorm);
+```
+
+- 이를 구현해서 실행하면 아래 사진 처럼 평면이 누워 있어도 normal map에 의한 효과가 잘 나타남을 알 수 있다.
+![normal_map5](/note_image/normal5.png)
+
+#### (+고급) Parallex Mapping
+
+- normal mapping은 텍스쳐 맵에 현실감을 더해주는 아주 중요한 요소이다. 하지만 normal mapping만으로는 더 큰 깊이감을 만들어내기는 힘들다. 그리고 경계면에서는 입체감을 만들어 내기 힘들다는 단점이 있다.
+- 그래서 여기에 height map이라는 추가적인 정보를 전달하고, height map을 이용해 실제 바라보는 위치를 계산해 준다면 깊이감 있는 렌더링이 가능하다.
+- 자세한 내용 : <https://learnopengl.com/Advanced-Lighting/Parallax-Mapping>

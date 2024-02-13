@@ -151,6 +151,12 @@ bool Context::Init() {
     // 쉐도우 맵
     m_shadowMap = ShadowMap::Create(1024, 1024);
     m_lightingShadowProgram = Program::Create("./shader/lighting_shadow.vert", "./shader/lighting_shadow.frag");
+
+    // 노멀 맵
+    m_brickDiffuseTexture = Texture::CreateFromImage(Image::Load("./image/brickwall.jpg", false).get());
+    m_brickNormalTexture = Texture::CreateFromImage(Image::Load("./image/brickwall_normal.jpg", false).get());
+    m_normalProgram = Program::Create("./shader/normal.vert", "./shader/normal.frag");
+
     return true;
 }
 
@@ -364,6 +370,23 @@ void Context::Render(){
 
     // 바닥과 3개의 상자의 transform을 각각 지정한 후 그린다.
     DrawScene(view, projection, m_lightingShadowProgram.get());
+
+    auto modelTransform = 
+        glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 3.0f, 0.0f)) *
+        glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    m_normalProgram->Use();
+    m_normalProgram->SetUniform("viewPos", m_cameraPos);
+    m_normalProgram->SetUniform("lightPos", m_light.position);
+    glActiveTexture(GL_TEXTURE0);
+    m_brickDiffuseTexture->Bind();
+    m_normalProgram->SetUniform("diffuse", 0);
+    glActiveTexture(GL_TEXTURE1);
+    m_brickNormalTexture->Bind();
+    m_normalProgram->SetUniform("normalMap", 1);
+    glActiveTexture(GL_TEXTURE0);
+    m_normalProgram->SetUniform("modelTransform", modelTransform);
+    m_normalProgram->SetUniform("transform", projection * view * modelTransform);
+    m_plane->Draw(m_normalProgram.get());
 
     // 장면 그리기가 끝난 뒤 기본 프레임 버퍼로 바인딩을 바꾼다. 앞에서 렌더링한 장면이 텍스쳐로 저장되는데
     // 이 텍스쳐로 화면을 꽉 채우는 사각형을 그린다. - 결과는 이전과 다름이 없다.

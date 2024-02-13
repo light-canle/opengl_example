@@ -13,6 +13,11 @@ void Mesh::Init(
     const std::vector<Vertex>& vertices,
     const std::vector<uint32_t>& indices,
     uint32_t primitiveType) {
+    // 0. 만약 primitive가 삼각형인 경우 자동으로 접선 벡터를 계산
+    // const_cast는 Init 함수의 인자 vertices에 있는 const를 떼어내기 위해 쓴다.
+    if (primitiveType == GL_TRIANGLES) {
+        ComputeTangents(const_cast<std::vector<Vertex>&>(vertices), indices);
+    }
     // 1. VAO 바인딩 - VBO 바인딩 전에 함(그래야 VAO에 대응하는 VBO가 지정된다.)
     m_vertexLayout = VertexLayout::Create();
     // 2. VBO 바인딩 / 정점 데이터 복사
@@ -28,10 +33,11 @@ void Mesh::Init(
         indices.data(), sizeof(uint32_t), indices.size());
 
     // 4. VAO에서 정점 데이터의 속성을 지정
-    // 5번째 인자에 곱해지는 값은 한 정점 당 데이터 크기이다.(지금은 위치 3개, 법선 3개, 텍스쳐 2개로 총 8개)
+    // 5번째 인자에 곱해지는 값은 한 정점 당 데이터 크기이다.(지금은 위치 3개, 법선 3개, 텍스쳐 2개, 접선 3개로 총 11개)
     m_vertexLayout->SetAttrib(0, 3, GL_FLOAT, false, sizeof(Vertex), 0); // 위치(0~2)
     m_vertexLayout->SetAttrib(1, 3, GL_FLOAT, false, sizeof(Vertex), offsetof(Vertex, normal)); // 법선 벡터(3~5)
     m_vertexLayout->SetAttrib(2, 2, GL_FLOAT, false, sizeof(Vertex), offsetof(Vertex, texCoord)); // 텍스쳐 좌표(6~7)
+    m_vertexLayout->SetAttrib(3, 3, GL_FLOAT, false, sizeof(Vertex), offsetof(Vertex, tangent)); // 접선 벡터(8~10)
 }
 
 void Mesh::Draw(const Program* program) const {
@@ -124,4 +130,57 @@ void Material::SetToProgram(const Program* program) const {
     }
     glActiveTexture(GL_TEXTURE0);
     program->SetUniform("material.shininess", shininess);
+}
+
+void Mesh::ComputeTangents(std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices) {
+
+    auto compute = [](
+        // 삼각형을 이루는 세 정점의 위치
+        const glm::vec3& pos1, const glm::vec3& pos2, const glm::vec3& pos3,
+        // 세 정점의 텍스쳐 좌표
+        const glm::vec2& uv1, const glm::vec2& uv2, const glm::vec2& uv3)
+        -> glm::vec3 {
+
+        auto edge1 = pos2 - pos1;
+        auto edge2 = pos3 - pos1;
+        auto deltaUV1 = uv2 - uv1;
+        auto deltaUV2 = uv3 - uv1;
+        float det = (deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x);
+        if (det != 0.0f) {
+            auto invDet = 1.0f / det;
+            return invDet * (deltaUV2.y * edge1 - deltaUV1.y * edge2);
+        }
+        else {
+            return glm::vec3(0.0f, 0.0f, 0.0f);
+        }
+    };
+
+    // initialize
+    std::vector<glm::vec3> tangents;
+    tangents.resize(vertices.size());
+    memset(tangents.data(), 0, tangents.size() * sizeof(glm::vec3));
+
+    // accumulate triangle tangents to each vertex - 모든 vertex에 대해 평면 삼각형에 대한 tangent vector를 계산
+    for (size_t i = 0; i < indices.size(); i += 3) {
+        auto v1 = indices[i  ];
+        auto v2 = indices[i+1];
+        auto v3 = indices[i+2];
+
+        tangents[v1] += compute(
+            vertices[v1].position, vertices[v2].position, vertices[v3].position,
+            vertices[v1].texCoord, vertices[v2].texCoord, vertices[v3].texCoord);
+
+        tangents[v2] = compute(
+            vertices[v2].position, vertices[v3].position, vertices[v1].position,
+            vertices[v2].texCoord, vertices[v3].texCoord, vertices[v1].texCoord);
+
+        tangents[v3] = compute(
+            vertices[v3].position, vertices[v1].position, vertices[v2].position,
+            vertices[v3].texCoord, vertices[v1].texCoord, vertices[v2].texCoord);
+    }
+
+    // normalize
+    for (size_t i = 0; i < vertices.size(); i++) {
+        vertices[i].tangent = glm::normalize(tangents[i]);
+    }
 }

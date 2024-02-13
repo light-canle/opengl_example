@@ -9,9 +9,10 @@
 
 // 1개의 vertex에 대한 정보를 담은 struct
 struct Vertex {
-    glm::vec3 position;
-    glm::vec3 normal;
-    glm::vec2 texCoord;
+    glm::vec3 position; // 위치
+    glm::vec3 normal; // 법선 벡터
+    glm::vec2 texCoord; // 텍스쳐상의 좌표
+    glm::vec3 tangent; // 접선 벡터
 };
 
 CLASS_PTR(Material);
@@ -52,6 +53,8 @@ public:
 
     // 해당 데이터의 물체를 렌더링
     void Draw(const Program* program) const;
+    // 접선 벡터를 계산함
+    static void ComputeTangents(std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
 
 private:
     Mesh() {}
