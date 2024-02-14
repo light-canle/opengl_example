@@ -736,3 +736,170 @@ vec3 pixelNorm = normalize(TBN * texNorm);
 - normal mapping은 텍스쳐 맵에 현실감을 더해주는 아주 중요한 요소이다. 하지만 normal mapping만으로는 더 큰 깊이감을 만들어내기는 힘들다. 그리고 경계면에서는 입체감을 만들어 내기 힘들다는 단점이 있다.
 - 그래서 여기에 height map이라는 추가적인 정보를 전달하고, height map을 이용해 실제 바라보는 위치를 계산해 준다면 깊이감 있는 렌더링이 가능하다.
 - 자세한 내용 : <https://learnopengl.com/Advanced-Lighting/Parallax-Mapping>
+
+- Note : HDR과 Bloom 부분은 원 강의에서 예제 작성 없이 learnopengl.com의 코드만 설명했으므로 여기서도 소스 코드 작성은 없이 여기에 learnopengl.com의 내용을 가져왔다. 소스 코드는 제목에 있는 사이트에서 가져왔다.
+
+### HDR (High dynamic range) <https://learnopengl.com/Advanced-Lighting/HDR>
+
+- 기본적으로 RGBA 색상값은 0.0~1.0 사이의 값으로 들어온다. 만약 1.0보다 더 큰 값이 fragment shader에 들어오게 된다면 fragment shader는 자동으로 이 값을 1.0으로 만들어준다.
+- 그러나 현실에서 같은 하얀색이라고 밝기가 모두 같은 것은 아니다. 흰색 용지와 흰색 형광등을 쳐다볼 때 느낌이 다른 것처럼 빛이 강해서 더 밝은 색으로 표현해야 하는 곳이 있을 것이다. 그러나 모니터는 0.0 ~ 1.0 사이의 밝기 값만 렌더링 할 수 있으므로 이런 차이를 만들어 낼 수 없다.
+- 그래서 fragment shader 쉐이더에서 1.0이 넘어가는 색상값을 받은 뒤, 최종적으로 픽셀의 색을 지정해 줄 때는 공식에 의해 다시 0.0 ~ 1.0 범위로 조절해 줄 수 있다. 이처럼 모니터에서 표현 가능한 범위를 벗어난 색상값을 저장하고 사용하는 기법을 HDR이라고 한다.
+- HDR을 사용하려면 1.0보다 더 큰 색상값을 저장해야 하므로, 텍스쳐를 만들 때 GL_RGBA가 아닌 GL_RGBA16F나 GL_RGBA32F를 사용해야 한다. 이를 floating point framebuffer라고 한다.
+
+```c++
+glBindTexture(GL_TEXTURE_2D, colorBuffer);
+// GL_RGBA16F 형식으로 지정해준다.
+glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL);
+```
+
+#### HDR 기법
+
+1. Tone mapping
+   - floating point framebuffer에 그려진 texture를 0.0 ~ 1.0 범위에 맞춰서 다시 화면에 그리는 것이다.
+   - Reinhard tone mapping 방식을 사용해서 모든 색상 값을 다시 0 ~ 1로 조절한다.
+   - vec3 mapped = hdrColor / (hdrColor + vec3(1.0))
+
+```glsl
+void main() {
+    const float gamma = 2.2;
+    vec3 hdrColor = texture(hdrBuffer, TexCoords).rgb;
+    // reinhard tone mapping
+    vec3 mapped = hdrColor / (hdrColor + vec3(1.0));
+    // gamma correction
+    mapped = pow(mapped, vec3(1.0 / gamma));
+}
+```
+
+2. Exposure tone mapping
+   - 위처럼 공식을 이용해서 값을 0.0 ~ 1.0 사이로 조절하는 것은 비슷하지만, 노출값을 파라미터로 사용한다는 것과 다른 공식을 사용한다는 차이가 있다.
+   - vec3 mapped = vec3(1.0) - exp(-hdrColor * exposure)
+   - 노출값이 클수록 전체적으로 더 밝게 보이고, 어두운 곳의 디테일을 볼 수 있으며, 노출값이 작을 수록 전체적으로 어둡게 보이며 밝은 곳의 디테일을 볼 수 있다.
+
+```glsl
+uniform float exposure;
+void main() {
+    const float gamma = 2.2;
+    vec3 hdrColor = texture(hdrBuffer, TexCoords).rgb;
+    // exposure tone mapping
+    vec3 mapped = vec3(1.0) - exp(-hdrColor * exposure);
+    // gamma correction mapped = pow(mapped, vec3(1.0 / gamma));
+    FragColor = vec4(mapped, 1.0);
+}
+```
+
+### Bloom (<https://learnopengl.com/Advanced-Lighting/Bloom>)
+
+- 1 이상의 밝은 빛을 시각적으로 표현해주는 방법으로 glow effect를 표현하는 후처리 효과의 일종이다.
+- 1보다 큰 부분에 밝게 빛나는 효과를 준다.
+- 구현 방식
+  - 텍스쳐에서 색상 값을 일반적인 방식으로 가져와 빛 계산을 하고 픽셀 값을 FragColor에 저장한다.
+  - 이제 텍스쳐에서 색상 값이 1.0이 넘는 부분만 가져와 따로 렌더링한 텍스쳐를 만든다.
+  - 바로 전 과정에서 만든 텍스쳐에 blur 연산을 해서 흐릿하게 만든다.
+  - 맨 처음 만든 텍스쳐와 blur 연산을 한 텍스쳐를 동시에 그려낸다.
+- Multiple render target을 이용해서, 프레임 버퍼에 여러개의 color attachment를 설정할 수 있다.
+
+```glsl
+layout (location = 0) out vec4 FragColor;
+layout (location = 1) out vec4 BrightColor;
+```
+
+- 그리고 fragment shader에서 FragColor와 BrightColor를 모두 지정해 준다.
+
+```glsl
+void main() {
+    // 중략
+    // first do normal lighting calculations and output results
+    FragColor = vec4(lighting, 1.0);
+    // if fragment output is higher than threshold, output brightness color
+    float brightness = dot(FragColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+    if(brightness > 1.0)
+        BrightColor = vec4(FragColor.rgb, 1.0);
+    else
+        BrightColor = vec4(0.0, 0.0, 0.0, 1.0);
+}
+```
+
+- c++ 코드에서 두 color attachment를 하나의 프레임 버퍼에 설정하기 위해서는 생성된 두 텍스쳐를 GL_COLOR_ATTACHMENT0과 GL_COLOR_ATTACHMENT1로 붙인 뒤, glDrawBuffers() 함수를 이용해서 그린다.
+
+```c++
+// set up floating point framebuffer to render scene to
+unsigned int hdrFBO;
+glGenFramebuffers(1, &hdrFBO);
+glBindFramebuffer(GL_FRAMEBUFFER, hdrFBO);
+
+unsigned int colorBuffers[2];
+glGenTextures(2, colorBuffers);
+for (unsigned int i = 0; i < 2; i++) {
+    glBindTexture(GL_TEXTURE_2D, colorBuffers[i]);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F,
+        SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    // attach texture to framebuffer
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i,
+        GL_TEXTURE_2D, colorBuffers[i], 0);
+}
+// 두 color attachment를 배열에 넣고 glDrawBuffers에 전달한다.
+unsigned int attachments[2] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
+glDrawBuffers(2, attachments);
+```
+
+- blur 연산으로는 Gaussian blur의 변형인 Separate Gaussian blur연산을 쓴다.
+- Gaussian blur에서는 모든 픽셀들에 대해 이웃하는 픽셀들의 색상의 가중치를 Gaussian 함수를 바탕으로 계산한 뒤, 계산된 가중치와 픽셀의 색을 곱한 뒤 그들의 평균을 내는 식으로 해당 픽셀의 색을 계산한다.
+- 이 계산은 n x n 크기로 이웃 픽셀들에 대해 계산할 때 2차 시간이지만, Gaussian 함수가 대칭형 함수라는 것을 이용해서, 2n번의 계산안에 이를 계산해 낼 수 있다. 이 방식이 Separate Gaussian blur이다.
+- 아래는 9 x 9 크기의 이웃 픽셀에 Separate Gaussian blur 연산을 수행하는 코드이다.
+
+```glsl
+#version 330 core
+
+out vec4 FragColor;
+in vec2 TexCoords;
+
+uniform sampler2D image;
+uniform bool horizontal;
+
+uniform float weight[5] = float[] (
+    0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216
+);
+void main() {
+    vec2 tex_offset = 1.0 / textureSize(image, 0); // size of single texel
+    vec3 result = texture(image, TexCoords).rgb * weight[0]; // this fragment
+    if(horizontal) {
+        for(int i = 1; i < 5; ++i) {
+        result += texture(image, TexCoords + vec2(tex_offset.x * i, 0.0)).rgb * weight[i];
+        result += texture(image, TexCoords - vec2(tex_offset.x * i, 0.0)).rgb * weight[i];
+        }
+    } else {
+        for(int i = 1; i < 5; ++i) {
+        result += texture(image, TexCoords + vec2(0.0, tex_offset.y * i)).rgb * weight[i];
+        result += texture(image, TexCoords - vec2(0.0, tex_offset.y * i)).rgb * weight[i];
+        }
+    }
+    FragColor = vec4(result, 1.0);
+}
+```
+
+- Separate Gaussian filter를 2개의 frame buffer에 번갈아가며 렌더링 한 뒤 마지막으로 기존 장면과 blur 처리를 한 장면을 합친 뒤 tone mapping을 해주면 된다.
+
+```glsl
+#version 330 core
+
+out vec4 FragColor;
+in vec2 TexCoords;
+
+uniform sampler2D scene;
+uniform sampler2D bloomBlur;
+uniform float exposure;
+
+void main() {
+    const float gamma = 2.2;
+    vec3 hdrColor = texture(scene, TexCoords).rgb;
+    vec3 bloomColor = texture(bloomBlur, TexCoords).rgb;
+    hdrColor += bloomColor;                              // additive blending
+    vec3 result = vec3(1.0) - exp(-hdrColor * exposure); // tone mapping
+    result = pow(result, vec3(1.0 / gamma));             // gamma correction
+    FragColor = vec4(result, 1.0);
+}
+```
