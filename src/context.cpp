@@ -371,6 +371,23 @@ void Context::Render(){
         glm::scale(glm::mat4(1.0f), glm::vec3(2.0f)));
     m_plane->Draw(m_deferLightProgram.get());
     
+    // 올바른 렌더링을 위해 G-Buffer에 있는 depth buffer를 가져온다.
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, m_deferGeoFramebuffer->Get()); // 읽는 프레임 버퍼 지정
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0); // 추가로 그리는 프레임 버퍼
+    glBlitFramebuffer(0, 0, m_width, m_height, // Read -> Draw쪽으로 버퍼를 복사 (여기서는 Depth Buffer만)
+        0, 0, m_width, m_height,
+        GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0); // 기본 프레임 버퍼 바인딩
+
+    // forward rendering
+    m_simpleProgram->Use();
+    for (size_t i = 0; i < m_deferLights.size(); i++) {
+        m_simpleProgram->SetUniform("color", glm::vec4(m_deferLights[i].color, 1.0f));
+        m_simpleProgram->SetUniform("transform", projection * view *
+            glm::translate(glm::mat4(1.0f), m_deferLights[i].position) *
+            glm::scale(glm::mat4(1.0f), glm::vec3(0.15f)));
+        m_box->Draw(m_simpleProgram.get());
+    }
     // Skybox 렌더링 - 크기 50짜리 큐브를 사용한다.
     // auto skyboxModelTransform =
     //   glm::translate(glm::mat4(1.0), m_cameraPos) *

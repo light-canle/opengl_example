@@ -1004,3 +1004,26 @@ fragColor = vec4(lighting, 1.0);
 - 실행 결과
 ![Lighting Pass](/note_image/deferred_shading4.png)
 - 화면에서 큐브들의 각 면 색깔이 약간 다른 것을 통해 여러 개의 빛이 렌더링 되었음을 알 수 있다. 그리고 빛이 32개나 있음에도 부드럽게 카메라 이동이 되는 것을 통해 deferred shading의 효과를 볼 수 있다.
+
+#### Forward Rendering과 같이 사용
+
+- Deferred Shading은 많은 빛과 오브젝트가 있어도 이들을 효율적으로 그릴 수 있다는 장점이 있지만, 약점도 존재한다.
+- Deferred Shading으로는 blending operation을 할 수 없다. 즉, 반투명한 오브젝트를 그릴 수 없다.
+- 모든 픽셀을 하나의 fragment shader로만 그려야 한다. 즉, 오브젝트마다 다른 lighting 기법을 사용하거나 fragment shader를 따로 지정해주는 방식은 쓸 수 없다.
+- 그래서 이러한 약점을 보완하기 위해 지금까지 사용한 forward rendering과 같이 사용할 수 있다. 대부분의 Scene은 Deferred shading을 이용한 뒤, 블렌딩이나 UI등을 그리는 데 Forward rendering을 사용한다.
+- 둘을 혼용할 때, Deferred shading을 한 부분 바로 뒤에 forward rendering 부분을 넣게 되면 forward rendering 부분이 제대로 그려지지 않게 된다. 왜냐하면, deferred shading을 이용하면 z = 0.5인 평면에 모든 그림을 그리는 형태가 되는데, 이후 그려지는 forward rendering의 물체들이 depth test를 통과하지 못해서 제대로 그려지지 않게 된다. 그래서 forward rendering을 하기 전에 G-Buffer의 depth buffer를 들고올 필요가 있다.
+
+```c++
+glBindFramebuffer(GL_READ_FRAMEBUFFER, m_deferGeoFramebuffer->Get());
+glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+glBlitFramebuffer(0, 0, m_width, m_height,
+    0, 0, m_width, m_height,
+    GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+glBindFramebuffer(GL_FRAMEBUFFER, 0);
+```
+
+- 이 부분 뒤에 32개의 빛의 위치에 작은 큐브를 forward rendering으로 그려서 빛의 위치를 시각화 했다.
+![Deferred&Forward](/note_image/deferred_shading5.png)
+
+- (+) 이 예제의 defer_light.frag처럼 빛을 uniform으로 받는 방식은 모든 픽셀에 대해 빛을 계산해야 하므로 빛이 아주 많은 경우에는 비효율적일 수 있다. 이 경우에는 빛의 감쇠를 고려해서 빛이 도달하는 범위를 계산하고 (point light이면 구형, spot light이면 원뿔형) 그 범위 안에 있는 경우에만 빛을 계산하는 방식을 사용할 수도 있다. 더 자세한 내용은 : (<https://learnopengl.com/Advanced-Lighting/Deferred-Shading>)
+- (+) 빛이 4개 미만일 경우에는 forward rendering만으로도 충분하고, 그 이상인 경우이거나 Scene에 오브젝트가 많은 경우에는 deferred shading을 이용하는 것이 효율적이다.
