@@ -83,9 +83,22 @@ void Texture::SetTextureFormat(int width, int height, uint32_t format, uint32_t 
     m_format = format;
     m_type = type;
 
-    glTexImage2D(GL_TEXTURE_2D, 0, m_format,
+    // 텍스쳐 타입에 맞게 이미지의 타입을 조정해준다.
+    // GL_RGBA16F와 GL_RGBA32F는 GL_RGBA로 바꾸어 준다.
+    GLenum imageFormat = GL_RGBA;
+    if (m_format == GL_DEPTH_COMPONENT) {
+        imageFormat = GL_DEPTH_COMPONENT;        
+    }
+    // GL_RGB16F와 GL_RGB32F의 imageFormat은 GL_RGB
+    else if (m_format == GL_RGB ||
+        m_format == GL_RGB16F ||
+        m_format == GL_RGB32F) {
+        imageFormat = GL_RGB;
+    }
+
+    glTexImage2D(GL_TEXTURE_2D, 0, m_format, // m_format은 텍스쳐 포맷
         m_width, m_height, 0,
-        m_format, type, nullptr);
+        imageFormat, m_type, nullptr); // imageFormat은 이미지 포맷
 }
 
 /* == 큐브맵 텍스쳐 함수 == */

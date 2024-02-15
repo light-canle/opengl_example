@@ -737,7 +737,7 @@ vec3 pixelNorm = normalize(TBN * texNorm);
 - 그래서 여기에 height map이라는 추가적인 정보를 전달하고, height map을 이용해 실제 바라보는 위치를 계산해 준다면 깊이감 있는 렌더링이 가능하다.
 - 자세한 내용 : <https://learnopengl.com/Advanced-Lighting/Parallax-Mapping>
 
-- Note : HDR과 Bloom 부분은 원 강의에서 예제 작성 없이 learnopengl.com의 코드만 설명했으므로 여기서도 소스 코드 작성은 없이 여기에 learnopengl.com의 내용을 가져왔다. 소스 코드는 제목에 있는 사이트에서 가져왔다.
+> Note : HDR과 Bloom 부분은 원 강의에서 예제 작성 없이 learnopengl.com의 코드만 설명했으므로 여기서도 소스 코드 작성은 없이 여기에 learnopengl.com의 내용을 가져왔다. 소스 코드는 제목에 있는 사이트에서 가져왔다.
 
 ### HDR (High dynamic range) <https://learnopengl.com/Advanced-Lighting/HDR>
 
@@ -903,3 +903,52 @@ void main() {
     FragColor = vec4(result, 1.0);
 }
 ```
+
+### Deferred shading
+
+- 지금까지 한 것처럼 빛이나 물체에 관련된 모든 정보를 쉐이더에게 전달해 준 뒤 한 번에 그리게 하는 방식을 Forward shading이라고 한다. 이 방식의 문제점은 렌더링 해야 할 빛이 여러 개로 늘어날 때 생긴다. 각각의 light마다 fragment shader에서 빛 계산을 해주어야 하기 때문에 연산량이 늘어나 성능이 저하된다. 그리고 화면 밖 오브젝트나 화면에 있지만 가려진 오브젝트에 대한 계산도 하므로 불필요한 계산이 생긴다.
+- defer는 미루다 라는 뜻으로 deferred shading은 빛 연산을 뒤로 미룬다는 뜻이다.
+- 빛 렌더링에 필요한 오브젝트와 빛, 카메라의 position, normal, albedo(기본 배색), specular 같은 도형이나 텍스쳐 데이터를 먼저 렌더링해 프레임버퍼에 저장해 둔다. 이 프레임버퍼를 G-Buffer라고 한다.
+- 그리고 G-Buffer에 저장된 정보를 토대로 나중에 각 픽셀마다 빛 계산을 한다.
+
+#### (1) G-Buffer 만들기
+
+- framebuffer.h 와 framebuffer.cpp 쪽에 코드 수정이 일어났는데, 이는 G-Buffer는 빛 연산을 위한 여러가지 정보들을 여러 개의 컬러 버퍼에 나누어 저장하기 때문에, 프레임버퍼가 여러 개의 컬러 버퍼들을 담을 수 있게 하기 위해 인자로 하나가 아닌 여러 개의 텍스쳐를 받고 glDrawBuffers()를 이용해서 여러 개의 버퍼들을 그려주었다.
+- texture.cpp에서는 텍스쳐의 format을 지정해주는 SetTextureFormat()에 변화가 있었다. 컬러 버퍼에 위치를 저장하기 위해서는 큰 범위의 값을 받기 위해 텍스쳐 형식을 GL_RGBA16F 같이 큰 floating point 형태로 지정해 주어야 하는데, 이미지 타입은 GL_RGBA와 같이 기본 형태를 써야 한다. 텍스쳐 형식과 이미지 형식이 달라질 수 있기 때문에 이 함수에 수정을 가한 것이다.
+- 새로운 쉐이더인 defer_geo.vert, defer_geo.frag를 추가했다. vertex shader는 lighting.vert와 거의 유사하고, fragment shader는 여러 개의 컬러 버퍼를 반환하기 위해 layout을 이용해서 3개의 컬러 버퍼를 반환할 수 있게 했다. 그리고 각각의 값들은 main() 함수에서 지정해 준다.
+
+```glsl
+// G-Buffer를 위한 3개의 output - 3개의 color attachment를 반환
+layout (location = 0) out vec4 gPosition; // 위치
+layout (location = 1) out vec4 gNormal; // 법선
+layout (location = 2) out vec4 gAlbedoSpec; // 기본 배색(RGB)과 반사광(A)
+
+[중략]
+
+void main() {
+    // store the fragment position vector in the first gbuffer texture - fragment의 위치를 저장
+    gPosition = vec4(position, 1.0);
+    // also store the per-fragment normals into the gbuffer - fragment의 법선 벡터 저장
+    gNormal = vec4(normalize(normal), 1.0);
+    // and the diffuse per-fragment color - 기본 배색을 저장
+    gAlbedoSpec.rgb = texture(material.diffuse, texCoord).rgb;
+    // store specular intensity in gAlbedoSpec’s alpha component - 반사 정도를 저장
+    gAlbedoSpec.a = texture(material.specular, texCoord).r;
+}
+```
+
+- context.h에는 deferred shading을 위한 변수를 추가하고, context.cpp에서는 쉐이더를 사용하는 부분과 이를 통해 만들어진 G-Buffer를 확인하기 위해 ImGUI 창을 1개 더 만들어 주었다.
+
+- G-Buffer Position
+![G-buffer1](/note_image/deferred_shading1.png)
+- 위치 값이 저장된 모습으로 0~1 범위만 그려낼 수 있어 음수는 0으로, 1보다 큰 부분은 1로 그려진다.
+- 화면에서 오른쪽이 x축 방향, 앞쪽이 z축 방향, 위쪽이 y축 방향이 되고, 텍스쳐 맵에서 각각 빨간색, 파란색, 초록색 값을 결정한다.
+- x,y,z좌표가 각각 1 이상인 픽셀은 빨간색, 초록색, 파란색으로 나타나고, 이들이 조합되어서 화면에 마젠타나 시안, 노란색이 나타나는 것이다.
+
+- G-Buffer Normal
+![G-buffer2](/note_image/deferred_shading2.png)
+- 빨간색 부분은 법선 벡터가 x축 방향에 가까움을 , 초록색 부분은 법선 벡터가 y축 방향에 가까움을, 파란색 부분은 z축 방향에 가까움을 의미한다. (큐브의 면마다 법선 벡터 방향을 다르게 지정했기 때문에 면마다 색이 다르게 나온다.)
+
+- G-Buffer Albedo와 Specular
+![G-buffer3](/note_image/deferred_shading3.png)
+- Albedo는 텍스쳐에 저장된 픽셀의 색을 그대로 그려낸다. 그런데 상자의 가운데 부분이 검은색인 이유는 상자의 specualr 맵에서 가운데 부분의 반사 정도를 0으로(검게) 지정했기 때문에 상자 가운데 부분은 alpha 값이 0이어서 검게 보이고 나머지 부분은 텍스쳐 맵에서의 원래 색을 들고온다.
