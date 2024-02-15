@@ -952,3 +952,55 @@ void main() {
 - G-Buffer Albedo와 Specular
 ![G-buffer3](/note_image/deferred_shading3.png)
 - Albedo는 텍스쳐에 저장된 픽셀의 색을 그대로 그려낸다. 그런데 상자의 가운데 부분이 검은색인 이유는 상자의 specualr 맵에서 가운데 부분의 반사 정도를 0으로(검게) 지정했기 때문에 상자 가운데 부분은 alpha 값이 0이어서 검게 보이고 나머지 부분은 텍스쳐 맵에서의 원래 색을 들고온다.
+
+#### Deferred Shading 적용 (Lighting Pass)
+
+- 이제 G-Buffer의 데이터를 받아서 빛 계산을 해주는 또다른 쉐이더 프로그램을 만들면 된다.
+- defer_light.vert는 이전의 texture.vert와 비슷하다. 텍스쳐에서 픽셀을 받아와 반환한다.
+- defer_light.frag는 G-buffer의 데이터를 받기 위해 3개의 sampler2D를 uniform으로 받고, 추가적으로 32개의 빛을 렌더링하기 위해 간단한 형태의 빛의 정보(위치와 색상)를 배열 형태로 받는다.
+
+```glsl
+// G-Buffer의 데이터를 텍스쳐 형태로 받는다.
+uniform sampler2D gPosition;
+uniform sampler2D gNormal;
+uniform sampler2D gAlbedoSpec;
+
+// 빛의 위치와 색상 - attenuation(감쇠)이 없는 point light 형태로 구현
+struct Light {
+    vec3 position;
+    vec3 color;
+};
+
+// 32개의 빛을 담은 배열
+const int NR_LIGHTS = 32;
+uniform Light lights[NR_LIGHTS];
+```
+
+- 그 다음 main 함수에서 G-Buffer의 데이터를 가져온 뒤 이들을 이용해서 빛 계산을 해 최종적인 픽셀의 색상을 결정한다. 이때 빛 32개를 모두 렌더링 해야 하므로 반복문을 사용해서 빛 계산을 해준다.
+
+```glsl
+// retrieve data from G-buffer
+vec3 fragPos = texture(gPosition, texCoord).rgb;
+vec3 normal = texture(gNormal, texCoord).rgb;
+vec3 albedo = texture(gAlbedoSpec, texCoord).rgb;
+float specular = texture(gAlbedoSpec, texCoord).a;
+// then calculate lighting as usual
+// G-Buffer 데이터를 받아 원래 빛을 계산하는 공식을 쓴다.
+vec3 lighting = albedo * 0.1; // hard-coded ambient component(주변광)
+vec3 viewDir = normalize(viewPos - fragPos);
+// 32개의 빛에 대해 빛의 방향을 계산해서 분산광을 계산한다.
+for(int i = 0; i < NR_LIGHTS; ++i) {
+    // diffuse
+    vec3 lightDir = normalize(lights[i].position - fragPos);
+    vec3 diffuse = max(dot(normal, lightDir), 0.0) * albedo * lights[i].color;
+    lighting += diffuse;
+}
+// 최종 색 반환
+fragColor = vec4(lighting, 1.0);
+```
+
+- common.h, common.cpp에 임의의 빛을 만들기 위한 간단한 난수 생성 함수를 추가했다.
+- 그리고, context.h와 context.cpp에는 lighting pass를 적용하기 위해 새로운 맴버 변수를 추가하고 Init()과 Render()에 코드를 추가했다. G-Buffer에 우리가 그릴 바닥과 큐브에 대한 데이터가 이미 있고, lighting pass 이후에 우리가 그린 코드를 넣으면 렌더링된 32개의 빛이 덮어 쓰여지므로, lighting pass 이후의 모든 렌더링 코드(스카이맵과 큐브 그리는 부분)는 주석 처리했다.
+- 실행 결과
+![Lighting Pass](/note_image/deferred_shading4.png)
+- 화면에서 큐브들의 각 면 색깔이 약간 다른 것을 통해 여러 개의 빛이 렌더링 되었음을 알 수 있다. 그리고 빛이 32개나 있음에도 부드럽게 카메라 이동이 되는 것을 통해 deferred shading의 효과를 볼 수 있다.

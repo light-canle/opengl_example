@@ -157,8 +157,20 @@ bool Context::Init() {
     m_brickNormalTexture = Texture::CreateFromImage(Image::Load("./image/brickwall_normal.jpg", false).get());
     m_normalProgram = Program::Create("./shader/normal.vert", "./shader/normal.frag");
 
-    // Deferred Shading
+    // Deferred Shading - G-Buffer
     m_deferGeoProgram = Program::Create("./shader/defer_geo.vert", "./shader/defer_geo.frag");
+    // Deferred Shading - Lighting pass
+    m_deferLightProgram = Program::Create("./shader/defer_light.vert", "./shader/defer_light.frag");
+    
+    // 32개의 빛을 임의의 위치에 배치한 뒤, 색상을 부여
+    m_deferLights.resize(32);
+    for (size_t i = 0; i < m_deferLights.size(); i++) {
+        m_deferLights[i].position = glm::vec3(
+            RandomRange(-10.0f, 10.0f), RandomRange(1.0f, 4.0f), RandomRange(-10.0f, 10.0f));
+        m_deferLights[i].color = glm::vec3(
+            RandomRange(0.05f, 0.3f), RandomRange(0.05f, 0.3f), RandomRange(0.05f, 0.3f));
+    }
+
 
     return true;
 }
@@ -336,83 +348,104 @@ void Context::Render(){
     // Z buffer 활성화
     glEnable(GL_DEPTH_TEST);
 
-    /* view matrix를 구했으므로 이제 물체들을 배치한다. */
+    // Deferred shading - Lighting pass
+    m_deferLightProgram->Use();
+    glActiveTexture(GL_TEXTURE0);
+    m_deferGeoFramebuffer->GetColorAttachment(0)->Bind(); // position
+    glActiveTexture(GL_TEXTURE1);
+    m_deferGeoFramebuffer->GetColorAttachment(1)->Bind(); // normal
+    glActiveTexture(GL_TEXTURE2);
+    m_deferGeoFramebuffer->GetColorAttachment(2)->Bind(); // albedo, specualr
+    glActiveTexture(GL_TEXTURE0);
+    // 바인딩된 텍스쳐를 전달
+    m_deferLightProgram->SetUniform("gPosition", 0);
+    m_deferLightProgram->SetUniform("gNormal", 1);
+    m_deferLightProgram->SetUniform("gAlbedoSpec", 2);
+    for (size_t i = 0; i < m_deferLights.size(); i++) {
+        auto posName = fmt::format("lights[{}].position", i);
+        auto colorName = fmt::format("lights[{}].color", i);
+        m_deferLightProgram->SetUniform(posName, m_deferLights[i].position);
+        m_deferLightProgram->SetUniform(colorName, m_deferLights[i].color);
+    }
+    m_deferLightProgram->SetUniform("transform",
+        glm::scale(glm::mat4(1.0f), glm::vec3(2.0f)));
+    m_plane->Draw(m_deferLightProgram.get());
     
     // Skybox 렌더링 - 크기 50짜리 큐브를 사용한다.
-    auto skyboxModelTransform =
-      glm::translate(glm::mat4(1.0), m_cameraPos) *
-      glm::scale(glm::mat4(1.0), glm::vec3(50.0f));
-    m_skyboxProgram->Use();
-    m_cubeTexture->Bind();
-    m_skyboxProgram->SetUniform("skybox", 0);
-    m_skyboxProgram->SetUniform("transform", projection * view * skyboxModelTransform);
-    m_box->Draw(m_skyboxProgram.get());
+    // auto skyboxModelTransform =
+    //   glm::translate(glm::mat4(1.0), m_cameraPos) *
+    //   glm::scale(glm::mat4(1.0), glm::vec3(50.0f));
+    // m_skyboxProgram->Use();
+    // m_cubeTexture->Bind();
+    // m_skyboxProgram->SetUniform("skybox", 0);
+    // m_skyboxProgram->SetUniform("transform", projection * view * skyboxModelTransform);
+    // m_box->Draw(m_skyboxProgram.get());
 
-    glm::vec3 lightPos = m_light.position;
-    glm::vec3 lightDir = m_light.direction;
+    // glm::vec3 lightPos = m_light.position;
+    // glm::vec3 lightDir = m_light.direction;
 
     // 손전등 효과를 위한 추가 코드
     // spot light의 위치와 방향을 카메라와 일치시킨다.
-    if (m_flashLightMode) {
-        m_light.position = m_cameraPos;
-        m_light.direction = m_cameraFront;
-    }
-    else{
+    // if (m_flashLightMode) {
+    //     m_light.position = m_cameraPos;
+    //     m_light.direction = m_cameraFront;
+    // }
+    // else{
         // 조명 역할을 해주는 큐브 - flash light가 아닐 때만 그려짐
         // 빛의 위치
-        auto lightModelTransform =
-            glm::translate(glm::mat4(1.0), m_light.position) *
-            glm::scale(glm::mat4(1.0f), glm::vec3(0.15f));
-        m_simpleProgram->Use();
-        m_simpleProgram->SetUniform("color", glm::vec4(m_light.ambient + m_light.diffuse, 1.0f));
-        m_simpleProgram->SetUniform("transform", projection * view * lightModelTransform);
-        m_box->Draw(m_simpleProgram.get());
-    }
+    //     auto lightModelTransform =
+    //         glm::translate(glm::mat4(1.0), m_light.position) *
+    //         glm::scale(glm::mat4(1.0f), glm::vec3(0.15f));
+    //     m_simpleProgram->Use();
+    //     m_simpleProgram->SetUniform("color", glm::vec4(m_light.ambient + m_light.diffuse, 1.0f));
+    //     m_simpleProgram->SetUniform("transform", projection * view * lightModelTransform);
+    //     m_box->Draw(m_simpleProgram.get());
+    // }
 
-    /* === 물체 렌더링 === */
-    m_program->Use(); // 프로그램 사용
-    // 쉐이더 uniform 지정 (light 설정)
-    m_lightingShadowProgram->Use();
-    m_lightingShadowProgram->SetUniform("viewPos", m_cameraPos);
-    m_lightingShadowProgram->SetUniform("light.directional", m_light.directional ? 1 : 0);
-    m_lightingShadowProgram->SetUniform("light.position", m_light.position);
-    m_lightingShadowProgram->SetUniform("light.direction", m_light.direction);
-    m_lightingShadowProgram->SetUniform("light.cutoff", glm::vec2(
-        cosf(glm::radians(m_light.cutoff[0])),
-        cosf(glm::radians(m_light.cutoff[0] + m_light.cutoff[1]))));
-    m_lightingShadowProgram->SetUniform("light.attenuation", GetAttenuationCoeff(m_light.distance));
-    m_lightingShadowProgram->SetUniform("light.ambient", m_light.ambient);
-    m_lightingShadowProgram->SetUniform("light.diffuse", m_light.diffuse);
-    m_lightingShadowProgram->SetUniform("light.specular", m_light.specular);
-    m_lightingShadowProgram->SetUniform("blinn", (m_blinn ? 1 : 0));
-    // 빛의 projection, view 행렬을 전달
-    m_lightingShadowProgram->SetUniform("lightTransform", lightProjection * lightView);
-    // 쉐이더 맵은 3번 텍스쳐에 할당
-    glActiveTexture(GL_TEXTURE3);
-    m_shadowMap->GetShadowMap()->Bind();
-    // 쉐도우 맵의 ID를 전달
-    m_lightingShadowProgram->SetUniform("shadowMap", 3);
-    glActiveTexture(GL_TEXTURE0);
+    // /* === 물체 렌더링 === */
+    // m_program->Use(); // 프로그램 사용
+    // // 쉐이더 uniform 지정 (light 설정)
+    // m_lightingShadowProgram->Use();
+    // m_lightingShadowProgram->SetUniform("viewPos", m_cameraPos);
+    // m_lightingShadowProgram->SetUniform("light.directional", m_light.directional ? 1 : 0);
+    // m_lightingShadowProgram->SetUniform("light.position", m_light.position);
+    // m_lightingShadowProgram->SetUniform("light.direction", m_light.direction);
+    // m_lightingShadowProgram->SetUniform("light.cutoff", glm::vec2(
+    //     cosf(glm::radians(m_light.cutoff[0])),
+    //     cosf(glm::radians(m_light.cutoff[0] + m_light.cutoff[1]))));
+    // m_lightingShadowProgram->SetUniform("light.attenuation", GetAttenuationCoeff(m_light.distance));
+    // m_lightingShadowProgram->SetUniform("light.ambient", m_light.ambient);
+    // m_lightingShadowProgram->SetUniform("light.diffuse", m_light.diffuse);
+    // m_lightingShadowProgram->SetUniform("light.specular", m_light.specular);
+    // m_lightingShadowProgram->SetUniform("blinn", (m_blinn ? 1 : 0));
+    // // 빛의 projection, view 행렬을 전달
+    // m_lightingShadowProgram->SetUniform("lightTransform", lightProjection * lightView);
+    // // 쉐이더 맵은 3번 텍스쳐에 할당
+    // glActiveTexture(GL_TEXTURE3);
+    // m_shadowMap->GetShadowMap()->Bind();
+    // // 쉐도우 맵의 ID를 전달
+    // m_lightingShadowProgram->SetUniform("shadowMap", 3);
+    // glActiveTexture(GL_TEXTURE0);
 
-    // 바닥과 3개의 상자의 transform을 각각 지정한 후 그린다.
-    DrawScene(view, projection, m_lightingShadowProgram.get());
+    // // 바닥과 3개의 상자의 transform을 각각 지정한 후 그린다.
+    // DrawScene(view, projection, m_lightingShadowProgram.get());
 
-    auto modelTransform = 
-        glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 3.0f, 0.0f)) *
-        glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-    m_normalProgram->Use();
-    m_normalProgram->SetUniform("viewPos", m_cameraPos);
-    m_normalProgram->SetUniform("lightPos", m_light.position);
-    glActiveTexture(GL_TEXTURE0);
-    m_brickDiffuseTexture->Bind();
-    m_normalProgram->SetUniform("diffuse", 0);
-    glActiveTexture(GL_TEXTURE1);
-    m_brickNormalTexture->Bind();
-    m_normalProgram->SetUniform("normalMap", 1);
-    glActiveTexture(GL_TEXTURE0);
-    m_normalProgram->SetUniform("modelTransform", modelTransform);
-    m_normalProgram->SetUniform("transform", projection * view * modelTransform);
-    m_plane->Draw(m_normalProgram.get());
+    // auto modelTransform = 
+    //     glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 3.0f, 0.0f)) *
+    //     glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    // m_normalProgram->Use();
+    // m_normalProgram->SetUniform("viewPos", m_cameraPos);
+    // m_normalProgram->SetUniform("lightPos", m_light.position);
+    // glActiveTexture(GL_TEXTURE0);
+    // m_brickDiffuseTexture->Bind();
+    // m_normalProgram->SetUniform("diffuse", 0);
+    // glActiveTexture(GL_TEXTURE1);
+    // m_brickNormalTexture->Bind();
+    // m_normalProgram->SetUniform("normalMap", 1);
+    // glActiveTexture(GL_TEXTURE0);
+    // m_normalProgram->SetUniform("modelTransform", modelTransform);
+    // m_normalProgram->SetUniform("transform", projection * view * modelTransform);
+    // m_plane->Draw(m_normalProgram.get());
 
     // 장면 그리기가 끝난 뒤 기본 프레임 버퍼로 바인딩을 바꾼다. 앞에서 렌더링한 장면이 텍스쳐로 저장되는데
     // 이 텍스쳐로 화면을 꽉 채우는 사각형을 그린다. - 결과는 이전과 다름이 없다.

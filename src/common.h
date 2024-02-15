@@ -23,4 +23,7 @@ std::optional<std::string> LoadTextFile(const std::string& filename);
 // source : https://www.youtube.com/watch?v=JAW3MGlfDwY&list=PLvNHCGtd4kh_cYLKMP_E-jwF3YKpDP4hf&index=23
 glm::vec3 GetAttenuationCoeff(float distance);
 
+// minValue ~ maxValue 사이의 임의의 난수를 반환(float 형태)
+float RandomRange(float minValue = 0.0f, float maxValue = 1.0f);
+
 #endif // __COMMON_H__
