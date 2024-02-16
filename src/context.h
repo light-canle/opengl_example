@@ -136,6 +136,9 @@ private:
     TextureUPtr m_ssaoNoiseTexture; // 랜덤 회전 벡터 저장용
     std::vector<glm::vec3> m_ssaoSamples; // 커널 샘플 저장
     float m_ssaoRadius { 1.0f }; // 커널 반구 반지름
+    ProgramUPtr m_blurProgram; // blur 효과를 위한 쉐이더 프로그램
+    FramebufferUPtr m_ssaoBlurFramebuffer; // blur가 적용된 프레임 버퍼
+    bool m_useSsao { true }; // SSAO 맵을 light 렌더링에 사용할 지 여부
 };
 
 #endif

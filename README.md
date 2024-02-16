@@ -1162,3 +1162,82 @@ m_plane->Draw(m_ssaoProgram.get());
 ![SSAO2](/note_image/SSAO2.png)
 - 물체에 가까이 다가가보면 작은 패턴이 생김을 확인할 수 있는데 이는 우리가 4x4 크기의 랜덤 회전 벡터 텍스쳐맵을 이어 붙이는 형태로 사용했기 때문이다.
 ![SSAO3](/note_image/SSAO3.png)
+
+#### SSAO에 blur 효과 주기
+
+- 이제 만들어진 AO map에다 blur 효과를 적용해 볼 것이다.
+- 새로운 쉐이더 blur_5x5.vert와 .frag를 만든다. vertex shader는 ssao.vert와 같다.
+- fragment shader에서는 주변 5x5 영역의 이웃 텍스쳐들의 픽셀 색상을 모두 구해 그것의 평균을 적용해서 blur 효과를 낸다.
+
+```glsl
+void main() {
+    vec2 texelSize = 1.0 / vec2(textureSize(tex, 0));
+    vec4 result = vec4(0.0);
+    // 주변 5x5의 픽셀 색깔의 평균을 적용한다.
+    for (int x = -2; x <= 2; ++x) {
+        for (int y = -2; y <= 2; ++y) {
+            vec2 offset = vec2(float(x), float(y)) * texelSize;
+            result += texture(tex, texCoord + offset);
+        }
+    }
+    fragColor = result / 25.0;
+}
+```
+
+- context.h에 blur 효과를 적용할 쉐이더 프로그램과 이를 저장할 프레임버퍼 변수를 선언하고 context.cpp에서 초기화 해준 뒤, SSAO 맵을 그리는 코드 다음에 blur 효과를 적용해준다.
+
+```c++
+m_ssaoBlurFramebuffer->Bind();
+glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+glViewport(0, 0, m_width, m_height);
+m_blurProgram->Use();
+m_ssaoFramebuffer->GetColorAttachment(0)->Bind();
+m_blurProgram->SetUniform("tex", 0);
+m_blurProgram->SetUniform("transform",
+    glm::scale(glm::mat4(1.0f), glm::vec3(2.0f)));
+m_plane->Draw(m_blurProgram.get());
+```
+
+- blur 처리된 SSAO 맵의 모습
+![SSAO4](/note_image/SSAO4.png)
+- 확대해서 보면 blur 처리로 패턴이 흐려진 것을 확인할 수 있다. (왼쪽이 blur 적용 전, 오른쪽이 적용 후)
+![SSAO5](/note_image/SSAO5.png)
+
+#### 실제 빛 렌더링에 적용
+
+- 만들어진 SSAO 맵을 이제 deferred shading을 이용한 빛 렌더링에 적용해 볼 것이다.
+- defer_light.frag 파일을 수정해서 SSAO 맵을 직접 받을 수 있도록 한다. main 함수에서는 주변광을 하드코드하는 부분을 useSsao가 1이면 SSAO 맵의 텍스쳐에서 가져온 색상에 0.4를 곱한 것을 주변광으로 정하도록 한다.
+
+```glsl
+// SSAO 맵을 받는다.
+uniform sampler2D ssao;
+uniform int useSsao; // SSAO 맵 적용 여부
+
+// main 함수
+// 주변광 계산 (useSsao가 1이면 SSAO 맵을 사용, 아니면 상수 주변광 사용)
+vec3 ambient = useSsao == 1 ?
+    texture(ssao, texCoord).r * 0.4 * albedo :
+    albedo * 0.4; // hard-coded ambient component 
+vec3 lighting = ambient; 
+```
+
+- context.h에는 SSAO 맵을 사용할 지 여부를 저장하는 bool 맴버를 추가하고, context.cpp에서 Init() 함수의 빛을 만드는 부분에서 SSAO 맵의 효과를 보기 위해 3개의 빛에만 색을 부여하는 코드를 넣는다.
+- lighting pass 부분에 새로운 uniform 변수를 받기 위해 SSAO 맵을 3번 텍스쳐에 바인딩하고, useSsao를 전달해주는 과정을 추가하면 된다.
+
+```c++
+glActiveTexture(GL_TEXTURE3);
+m_ssaoBlurFramebuffer->GetColorAttachment()->Bind(); // SSAO map
+// [...]
+m_deferLightProgram->SetUniform("ssao", 3);
+m_deferLightProgram->SetUniform("useSsao", m_useSsao ? 1 : 0);
+```
+
+- 실행한 뒤 SSAO 맵을 끈 것과 켠 것을 비교하면 SSAO 맵을 켠 쪽이 가장자리에 약간의 음영이 있어서 현실적인 느낌을 준다. (왼쪽이 SSAO를 켠 쪽, 오른쪽이 끈 쪽이다.)
+![SSAO6](/note_image/SSAO6.png)
+- (+) 렌더링 하려는 장면마다 sample의 개수, radius, bias를 잘 조절해 주어야 좋은 효과를 낼 수 있다.
+- (+) 마지막 과정에서 fragColor를 결정할 때 지수 함수를 사용할 수도 있다.
+
+```glsl
+occlusion = 1.0 - (occlusion / KERNEL_SIZE);
+fragColor = pow(occlusion, power);
+```

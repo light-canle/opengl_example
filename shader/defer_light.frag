@@ -7,6 +7,9 @@ in vec2 texCoord;
 uniform sampler2D gPosition;
 uniform sampler2D gNormal;
 uniform sampler2D gAlbedoSpec;
+// SSAO 맵을 받는다.
+uniform sampler2D ssao;
+uniform int useSsao; // SSAO 맵 적용 여부
 
 // 빛의 위치와 색상 - attenuation(감쇠)이 없는 point light 형태로 구현
 struct Light {
@@ -29,7 +32,12 @@ void main() {
     float specular = texture(gAlbedoSpec, texCoord).a;
     // then calculate lighting as usual
     // G-Buffer 데이터를 받아 원래 빛을 계산하는 공식을 쓴다.
-    vec3 lighting = albedo * 0.1; // hard-coded ambient component(주변광)
+    
+    // 주변광 계산 (useSsao가 1이면 SSAO 맵을 사용, 아니면 상수 주변광 사용)
+    vec3 ambient = useSsao == 1 ?
+        texture(ssao, texCoord).r * 0.4 * albedo :
+        albedo * 0.4; // hard-coded ambient component 
+    vec3 lighting = ambient; 
     vec3 viewDir = normalize(viewPos - fragPos);
     // 32개의 빛에 대해 빛의 방향을 계산해서 분산광을 계산한다.
     for(int i = 0; i < NR_LIGHTS; ++i) {

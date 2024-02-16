@@ -167,12 +167,17 @@ bool Context::Init() {
     for (size_t i = 0; i < m_deferLights.size(); i++) {
         m_deferLights[i].position = glm::vec3(
             RandomRange(-10.0f, 10.0f), RandomRange(1.0f, 4.0f), RandomRange(-10.0f, 10.0f));
+
+        // SSAO맵의 결과를 명확하게 보기 위해 3개의 빛만 색을 부여한다.
         m_deferLights[i].color = glm::vec3(
-            RandomRange(0.05f, 0.3f), RandomRange(0.05f, 0.3f), RandomRange(0.05f, 0.3f));
+            RandomRange(0.0f, i < 3 ? 1.0f : 0.0f),
+            RandomRange(0.0f, i < 3 ? 1.0f : 0.0f),
+            RandomRange(0.0f, i < 3 ? 1.0f : 0.0f));
     }
 
     // SSAO
     m_ssaoProgram = Program::Create("./shader/ssao.vert", "./shader/ssao.frag");
+    m_blurProgram = Program::Create("./shader/blur_5x5.vert", "./shader/blur_5x5.frag");
     m_model = Model::Load("./model/backpack.obj");
 
     // random rotation vector 생성
@@ -315,6 +320,7 @@ void Context::Render(){
             // directional light on/off
             ImGui::Checkbox("l.directional", &m_light.directional);
             // SSAO setting
+            ImGui::Checkbox("Use SSAO", &m_useSsao);
             ImGui::DragFloat("SSAO radius", &m_ssaoRadius, 0.01f, 0.01f, 5.0f);
         }
         
@@ -343,10 +349,19 @@ void Context::Render(){
 
     // SSAO 시각화
     if (ImGui::Begin("SSAO")) {
+        const char* bufferNames[] = { "original", "blurred" };
+        static int bufferSelect = 0;
+        ImGui::Combo("buffer", &bufferSelect, bufferNames, 2);
+
         float width = ImGui::GetContentRegionAvailWidth();
         float height = width * ((float)m_height / (float)m_width);
-        ImGui::Image((ImTextureID)m_ssaoFramebuffer->GetColorAttachment()->Get(),
-            ImVec2(width, height), ImVec2(0, 1), ImVec2(1, 0));
+        auto selectedAttachment =
+            bufferSelect == 0 ?
+            m_ssaoFramebuffer->GetColorAttachment() :
+            m_ssaoBlurFramebuffer->GetColorAttachment();
+
+        ImGui::Image((ImTextureID)selectedAttachment->Get(),
+        ImVec2(width, height), ImVec2(0, 1), ImVec2(1, 0));
     }
     ImGui::End();
 
@@ -425,6 +440,17 @@ void Context::Render(){
     m_ssaoProgram->SetUniform("projection", projection);
     m_plane->Draw(m_ssaoProgram.get());
 
+    // SSAO blur
+    m_ssaoBlurFramebuffer->Bind();
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glViewport(0, 0, m_width, m_height);
+    m_blurProgram->Use();
+    m_ssaoFramebuffer->GetColorAttachment(0)->Bind();
+    m_blurProgram->SetUniform("tex", 0);
+    m_blurProgram->SetUniform("transform",
+        glm::scale(glm::mat4(1.0f), glm::vec3(2.0f)));
+    m_plane->Draw(m_blurProgram.get());
+
     Framebuffer::BindToDefault();
     glViewport(0, 0, m_width, m_height);
     glClearColor(m_clearColor.r, m_clearColor.g, m_clearColor.b, m_clearColor.a);
@@ -447,11 +473,16 @@ void Context::Render(){
     m_deferGeoFramebuffer->GetColorAttachment(1)->Bind(); // normal
     glActiveTexture(GL_TEXTURE2);
     m_deferGeoFramebuffer->GetColorAttachment(2)->Bind(); // albedo, specualr
+    glActiveTexture(GL_TEXTURE3);
+    m_ssaoBlurFramebuffer->GetColorAttachment()->Bind(); // SSAO map
     glActiveTexture(GL_TEXTURE0);
     // 바인딩된 텍스쳐를 전달
     m_deferLightProgram->SetUniform("gPosition", 0);
     m_deferLightProgram->SetUniform("gNormal", 1);
     m_deferLightProgram->SetUniform("gAlbedoSpec", 2);
+    m_deferLightProgram->SetUniform("ssao", 3);
+    m_deferLightProgram->SetUniform("useSsao", m_useSsao ? 1 : 0);
+    // 빛의 위치와 색상 전달
     for (size_t i = 0; i < m_deferLights.size(); i++) {
         auto posName = fmt::format("lights[{}].position", i);
         auto colorName = fmt::format("lights[{}].color", i);
@@ -594,6 +625,10 @@ void Context::Reshape(int width, int height) {
 
     // AO 값을 담는 단일 채널 프레임 버퍼 생성
     m_ssaoFramebuffer = Framebuffer::Create({
+        Texture::Create(width, height, GL_RED),
+    });
+    // blur 효과 처리된 SSAO 맵
+    m_ssaoBlurFramebuffer = Framebuffer::Create({
         Texture::Create(width, height, GL_RED),
     });
 }
