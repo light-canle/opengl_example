@@ -95,6 +95,18 @@ void Texture::SetTextureFormat(int width, int height, uint32_t format, uint32_t 
         m_format == GL_RGB32F) {
         imageFormat = GL_RGB;
     }
+    // 채널이 1, 2개인 텍스쳐를 위한 포맷
+    else if (m_format == GL_RG ||
+        m_format == GL_RG16F ||
+        m_format == GL_RG32F) {
+        imageFormat = GL_RG;
+    }
+    else if (m_format == GL_RED ||
+        m_format == GL_R ||
+        m_format == GL_R16F ||
+        m_format == GL_R32F) {
+        imageFormat = GL_RED;
+    }
 
     glTexImage2D(GL_TEXTURE_2D, 0, m_format, // m_format은 텍스쳐 포맷
         m_width, m_height, 0,

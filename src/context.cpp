@@ -171,7 +171,47 @@ bool Context::Init() {
             RandomRange(0.05f, 0.3f), RandomRange(0.05f, 0.3f), RandomRange(0.05f, 0.3f));
     }
 
+    // SSAO
+    m_ssaoProgram = Program::Create("./shader/ssao.vert", "./shader/ssao.frag");
+    m_model = Model::Load("./model/backpack.obj");
 
+    // random rotation vector 생성
+    std::vector<glm::vec3> ssaoNoise;
+    ssaoNoise.resize(16);
+    for (size_t i = 0; i < ssaoNoise.size(); i++) {
+        // randomly selected tangent direction
+        // x, y만 난수인 이유는 z축에 가까운 normal vector에 대한 임의의 tangent vector를 만들어 내기 위해서이다.
+        glm::vec3 sample(RandomRange(-1.0f, 1.0f), RandomRange(-1.0f, 1.0f), 0.0f);
+        ssaoNoise[i] = sample;
+    }
+
+    // 4x4 크기의 텍스쳐 맵에 저장
+    m_ssaoNoiseTexture = Texture::Create(4, 4, GL_RGB16F, GL_FLOAT);
+    m_ssaoNoiseTexture->Bind();
+    m_ssaoNoiseTexture->SetFilter(GL_NEAREST, GL_NEAREST);
+    m_ssaoNoiseTexture->SetWrap(GL_REPEAT, GL_REPEAT);
+    // 이미 바인딩된 텍스쳐의 데이터를 바꾸기 위해 glTexSubImage2D를 사용한다.
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 4, 4,
+        GL_RGB, GL_FLOAT, ssaoNoise.data());
+
+    // SSAO를 위한 커널 샘플의 위치 저장
+    m_ssaoSamples.resize(64);
+    for (size_t i = 0; i < m_ssaoSamples.size(); i++) {
+        // uniformly randomized point in unit hemisphere
+        glm::vec3 sample(
+            RandomRange(-1.0f, 1.0f),
+            RandomRange(-1.0f, 1.0f),
+            RandomRange(0.0f, 1.0f));
+        sample = glm::normalize(sample) * RandomRange();
+
+        // scale for slightly shift to center
+        // 더 좋은 차폐 연산을 위해서 모든 점들이 중심에 조금 더 가깝게 배치되도록 위치를 조절
+        float t = (float)i / (float)m_ssaoSamples.size();
+        float t2 = t * t;
+        float scale = (1.0f - t2) * 0.1f + t2 * 1.0f;
+
+        m_ssaoSamples[i] = sample * scale;
+    }
     return true;
 }
 
@@ -220,6 +260,16 @@ void Context::DrawScene(const glm::mat4& view, const glm::mat4& projection, cons
     program->SetUniform("modelTransform", modelTransform);
     m_box2Material->SetToProgram(program);
     m_box->Draw(program);
+
+    // 가방 오브젝트 렌더링
+    modelTransform =
+        glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.55f, 0.0f)) *
+        glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f)) *
+        glm::scale(glm::mat4(1.0f), glm::vec3(0.5f, 0.5f, 0.5f));
+    transform = projection * view * modelTransform;
+    program->SetUniform("transform", transform);
+    program->SetUniform("modelTransform", modelTransform);
+    m_model->Draw(program);
 }
 
 // 렌더링 담당 함수
@@ -264,6 +314,8 @@ void Context::Render(){
             ImGui::Checkbox("l.blinn", &m_blinn);
             // directional light on/off
             ImGui::Checkbox("l.directional", &m_light.directional);
+            // SSAO setting
+            ImGui::DragFloat("SSAO radius", &m_ssaoRadius, 0.01f, 0.01f, 5.0f);
         }
         
         // 큐브 회전 여부
@@ -285,6 +337,15 @@ void Context::Render(){
         auto selectedAttachment =
         m_deferGeoFramebuffer->GetColorAttachment(bufferSelect);
         ImGui::Image((ImTextureID)selectedAttachment->Get(),
+            ImVec2(width, height), ImVec2(0, 1), ImVec2(1, 0));
+    }
+    ImGui::End();
+
+    // SSAO 시각화
+    if (ImGui::Begin("SSAO")) {
+        float width = ImGui::GetContentRegionAvailWidth();
+        float height = width * ((float)m_height / (float)m_width);
+        ImGui::Image((ImTextureID)m_ssaoFramebuffer->GetColorAttachment()->Get(),
             ImVec2(width, height), ImVec2(0, 1), ImVec2(1, 0));
     }
     ImGui::End();
@@ -333,6 +394,36 @@ void Context::Render(){
     glViewport(0, 0, m_width, m_height);
     m_deferGeoProgram->Use();
     DrawScene(view, projection, m_deferGeoProgram.get());
+
+    // SSAO
+    m_ssaoFramebuffer->Bind();
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glViewport(0, 0, m_width, m_height);
+    // 프로그램 사용, 텍스쳐 바인딩
+    m_ssaoProgram->Use();
+    glActiveTexture(GL_TEXTURE0);
+    m_deferGeoFramebuffer->GetColorAttachment(0)->Bind();
+    glActiveTexture(GL_TEXTURE1);
+    m_deferGeoFramebuffer->GetColorAttachment(1)->Bind();
+    glActiveTexture(GL_TEXTURE2);
+    m_ssaoNoiseTexture->Bind();
+    glActiveTexture(GL_TEXTURE0);
+    // Uniform 변수 지정
+    m_ssaoProgram->SetUniform("gPosition", 0);
+    m_ssaoProgram->SetUniform("gNormal", 1);
+    m_ssaoProgram->SetUniform("texNoise", 2);
+    m_ssaoProgram->SetUniform("noiseScale", glm::vec2(
+        (float)m_width / (float)m_ssaoNoiseTexture->GetWidth(),
+        (float)m_height / (float)m_ssaoNoiseTexture->GetHeight()));
+    m_ssaoProgram->SetUniform("radius", m_ssaoRadius);
+    for (size_t i = 0; i < m_ssaoSamples.size(); i++) {
+        auto sampleName = fmt::format("samples[{}]", i);
+        m_ssaoProgram->SetUniform(sampleName, m_ssaoSamples[i]);
+    }
+    m_ssaoProgram->SetUniform("transform", glm::scale(glm::mat4(1.0f), glm::vec3(2.0f)));
+    m_ssaoProgram->SetUniform("view", view);
+    m_ssaoProgram->SetUniform("projection", projection);
+    m_plane->Draw(m_ssaoProgram.get());
 
     Framebuffer::BindToDefault();
     glViewport(0, 0, m_width, m_height);
@@ -499,5 +590,10 @@ void Context::Reshape(int width, int height) {
         Texture::Create(width, height, GL_RGBA16F, GL_FLOAT), // position 저장
         Texture::Create(width, height, GL_RGBA16F, GL_FLOAT), // normal 저장
         Texture::Create(width, height, GL_RGBA, GL_UNSIGNED_BYTE), // albedo, specular 저장
+    });
+
+    // AO 값을 담는 단일 채널 프레임 버퍼 생성
+    m_ssaoFramebuffer = Framebuffer::Create({
+        Texture::Create(width, height, GL_RED),
     });
 }

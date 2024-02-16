@@ -1027,3 +1027,138 @@ glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 - (+) 이 예제의 defer_light.frag처럼 빛을 uniform으로 받는 방식은 모든 픽셀에 대해 빛을 계산해야 하므로 빛이 아주 많은 경우에는 비효율적일 수 있다. 이 경우에는 빛의 감쇠를 고려해서 빛이 도달하는 범위를 계산하고 (point light이면 구형, spot light이면 원뿔형) 그 범위 안에 있는 경우에만 빛을 계산하는 방식을 사용할 수도 있다. 더 자세한 내용은 : (<https://learnopengl.com/Advanced-Lighting/Deferred-Shading>)
 - (+) 빛이 4개 미만일 경우에는 forward rendering만으로도 충분하고, 그 이상인 경우이거나 Scene에 오브젝트가 많은 경우에는 deferred shading을 이용하는 것이 효율적이다.
+
+### SSAO
+
+- 지금까지 만든 Local illumination model에서는 ambient light(주변광)는 다른 빛이 없어도 기본적으로 있는 빛으로 정의하고 상수값으로 지정했었다.
+- 그러나 원래 ambient light란, scene에 포함된 모든 빛들이 물체에 부딫혀 발생된 산란을 시뮬레이션 한 것으로 local illumination model에서는 이를 단순화 했다. 이런 방식은 현실적이지는 않다.
+- 그래서 도입된 것이 ambient occlusion(주변광 차폐, AO)으로, 임의의 위치가 차폐된 정도를 계산한 수치이다.(0 ~) 차페된 정도가 높을수록 주변광을 덜 받아 어두울 것이다.
+- 이 AO 수치는 각각의 지점에서 적당한 수의 광선을 발사한 뒤 부딫힌 정도를 수집하여 계산한다. 그러나 이 계산은 매우 오래 걸리기 때문에 real-time에서 이 계산을 일일이 하기는 어렵고, normal 맵 처럼 AO 값을 담아놓은 텍스쳐 맵을 사용했었다. (model 파일의 ao.jpg 참고)
+- 그러나 2007년 Crytek 사에서 G-buffer를 사용해 AO를 빠르게 근사하는 방법을 발표했는데 이 기법이 SSAO (Screen-Space Ambient Occlusion)이다.
+- 아이디어 : 프레임버퍼의 각 픽셀 주위에 여러 개의 샘플들을 만들고, Mesh의 경계를 구해서 이 샘플들 중에서 mesh 안에 있는 것의 비율을 구한다. 그리고 샘플 위치의 depth값이 샘플 위치보다 더 작은 경우 차폐가 발생한 것으로 간주한다.
+- 이때 샘플의 수를 잘 조정하는 것이 중요하다. 샘플의 수가 너무 적으면 occlusion이 띠 형태로 나타나는 banding 현상이 나타나고, 너무 많으면 성능 저하가 일어나기 때문이다. 그래서 이 banding 현상을 완화하기 위해 샘플 수집을 위한 커널을 회전시킨 결과를 blur 처리해서 품질을 높일 수가 있다.
+- 커널의 형태는 normal 방향을 기준으로 회전된 반구 형태를 사용한다. 완전 구형의 커널을 사용하게 되면 평평한 면에서 절반의 차폐가 일어나기 때문이다.
+![SSAO1](/note_image/SSAO1.jpg)
+
+#### SSAO를 이용한 AO map 그리기
+
+- SSAO를 하기 위해서는 G-Buffer, Sample kernel(반구 형태 안에서의 기준 위치), random rotation vector가 필요하다.
+- G-Buffer의 경우 앞에서 만든 것을 사용하면 된다.
+- random rotation vector는 난수 생성을 통해 16개의 난수 벡터를 만들고, 이것으로 이루어진 4x4 크기의 텍스쳐 맵을 만든다.
+
+```c++
+// random rotation vector 생성
+std::vector<glm::vec3> ssaoNoise;
+ssaoNoise.resize(16);
+for (size_t i = 0; i < ssaoNoise.size(); i++) {
+    // randomly selected tangent direction
+    // x, y만 난수인 이유는 z축에 가까운 normal vector에 대한 임의의 tangent vector를 만들어 내기 위해서이다.
+    glm::vec3 sample(RandomRange(-1.0f, 1.0f), RandomRange(-1.0f, 1.0f), 0.0f);
+    ssaoNoise[i] = sample;
+}
+
+// 4x4 크기의 텍스쳐 맵에 저장
+m_ssaoNoiseTexture = Texture::Create(4, 4, GL_RGB16F, GL_FLOAT);
+m_ssaoNoiseTexture->Bind();
+m_ssaoNoiseTexture->SetFilter(GL_NEAREST, GL_NEAREST);
+m_ssaoNoiseTexture->SetWrap(GL_REPEAT, GL_REPEAT);
+// 이미 바인딩된 텍스쳐의 데이터를 바꾸기 위해 glTexSubImage2D를 사용한다.
+glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 4, 4,
+    GL_RGB, GL_FLOAT, ssaoNoise.data());
+```
+
+- Sample kernel은 난수 함수를 이용해서 z축을 normal vector로 하는 지름이 1인 반구 내에 임의의 지점을 골라서 저장한다. 이후 원점에 점들이 가까울 수록 차폐 연산의 결과가 더 좋기 때문에 2차 함수 형태의 scale 값을 구해서 위치 벡터에 곱해준다.
+
+```c++
+// SSAO를 위한 커널 샘플의 위치 저장
+m_ssaoSamples.resize(64);
+for (size_t i = 0; i < m_ssaoSamples.size(); i++) {
+    // uniformly randomized point in unit hemisphere
+    glm::vec3 sample(
+        RandomRange(-1.0f, 1.0f),
+        RandomRange(-1.0f, 1.0f),
+        RandomRange(0.0f, 1.0f));
+    sample = glm::normalize(sample) * RandomRange();
+
+    // scale for slightly shift to center
+    // 더 좋은 차폐 연산을 위해서 모든 점들이 중심에 조금 더 가깝게 배치되도록 위치를 조절
+    float t = (float)i / (float)m_ssaoSamples.size();
+    float t2 = t * t;
+    float scale = (1.0f - t2) * 0.1f + t2 * 1.0f;
+
+    m_ssaoSamples[i] = sample * scale;
+}
+```
+
+- 이제 쉐이더를 살펴보자. vertex shader는 지난 번에 만든 defer_light.vert와 동일하다.
+- fragment shader에서는 입력으로는 vertex shader에서 텍스쳐 좌표, G-Buffer에서 position, normal을 받는다. texNoise는 랜덤 회전 벡터로 만든 4x4 텍스쳐를 의미한다. 그리고 좌표 계산을 위한 view, projection matrix, 샘플을 저장하는 반구의 반지름, 랜덤 샘플들을 저장하는 배열을 받는다.
+
+```glsl
+// AO값만 출력하기 위해 out 변수가 float이다.
+out float fragColor;
+
+in vec2 texCoord;
+
+uniform sampler2D gPosition;
+uniform sampler2D gNormal;
+uniform sampler2D texNoise;
+
+uniform mat4 view;
+uniform mat4 projection; // Screen-space 계산을 위해 필요
+
+uniform vec2 noiseScale;
+uniform float radius; // 샘플들을 저장하는 반구의 반지름
+
+// random samples
+const int KERNEL_SIZE = 64;
+const float BIAS = 0.025; // acne 방지를 위한 편향값
+uniform vec3 samples[KERNEL_SIZE]; // 반구 내 임의의 위치를 담은 배열
+```
+
+- main 함수에서는 아래와 같은 과정을 거친다. (코드는 ssao.frag를 참고)
+
+> 1. 월드 좌표에 view matrix를 곱해 카메라 시선을 기준으로 한 픽셀의 좌표와 법선 벡터를 가져온다.
+> 2. 랜덤 회전 벡터 값을 texNoise에서 가져온다.
+> 3. Gram-Schmidt 과정을 이용해 randomVec를 normal vector에 수직한 평면에 내린 정사영인 tangent 벡터를 구하고, 이를 이용해 TBN 행렬을 계산한다.
+> 4. 픽셀 위치를 중심으로 하고 반지름이 radius인 반구 내 임의의 위치(샘플)를 가져온 뒤 그것의 screen-space상 좌표를 구한다.
+> 5. 화면 상 좌표에서 그려진 픽셀의 z값과 샘플의 z값을 비교해서 차폐의 여부를 검증한다. 그려진 픽셀의 z값이 샘플의 z값보다 큰 경우, 샘플이 매쉬 안쪽에 있다는 뜻이므로 차폐 값에 1 / (총 샘플의 수)를 누적하고, 아닌 경우에는 0을 누적한다.
+> 6. 추가적으로 샘플과 중심 사이의 거리를 계산해서 샘플이 중심으로 부터 너무 멀리 떨어진 경우 이 샘플이 주는 영향을 줄이기 위해서 rangeCheck을 구해 차폐 값에 곱해준다.
+> 7. 1 - (구한 차폐값)이 최종 AO 값이 된다.
+
+- SSAO 프로그램을 사용하는 부분은 Deferred shading 에서 geometry pass를 통해 G-Buffer를 생성한 부분 바로 뒤에 붙이면 된다.
+
+```c++
+m_ssaoFramebuffer->Bind();
+glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+glViewport(0, 0, m_width, m_height);
+
+m_ssaoProgram->Use();
+glActiveTexture(GL_TEXTURE0);
+m_deferGeoFramebuffer->GetColorAttachment(0)->Bind();
+glActiveTexture(GL_TEXTURE1);
+m_deferGeoFramebuffer->GetColorAttachment(1)->Bind();
+glActiveTexture(GL_TEXTURE2);
+m_ssaoNoiseTexture->Bind();
+glActiveTexture(GL_TEXTURE0);
+
+m_ssaoProgram->SetUniform("gPosition", 0);
+m_ssaoProgram->SetUniform("gNormal", 1);
+m_ssaoProgram->SetUniform("texNoise", 2);
+m_ssaoProgram->SetUniform("noiseScale", glm::vec2(
+    (float)m_width / (float)m_ssaoNoiseTexture->GetWidth(),
+    (float)m_height / (float)m_ssaoNoiseTexture->GetHeight()));
+m_ssaoProgram->SetUniform("radius", m_ssaoRadius);
+for (size_t i = 0; i < m_ssaoSamples.size(); i++) {
+    auto sampleName = fmt::format("samples[{}]", i);
+    m_ssaoProgram->SetUniform(sampleName, m_ssaoSamples[i]);
+}
+m_ssaoProgram->SetUniform("transform", glm::scale(glm::mat4(1.0f), glm::vec3(2.0f)));
+m_ssaoProgram->SetUniform("view", view);
+m_ssaoProgram->SetUniform("projection", projection);
+m_plane->Draw(m_ssaoProgram.get());
+```
+
+- 그려진 SSAO의 모습
+![SSAO2](/note_image/SSAO2.png)
+- 물체에 가까이 다가가보면 작은 패턴이 생김을 확인할 수 있는데 이는 우리가 4x4 크기의 랜덤 회전 벡터 텍스쳐맵을 이어 붙이는 형태로 사용했기 때문이다.
+![SSAO3](/note_image/SSAO3.png)

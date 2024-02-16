@@ -128,6 +128,14 @@ private:
         glm::vec3 color;
     };
     std::vector<DeferLight> m_deferLights;
+
+    // ssao
+    FramebufferUPtr m_ssaoFramebuffer;
+    ProgramUPtr m_ssaoProgram;
+    ModelUPtr m_model;  // for test rendering
+    TextureUPtr m_ssaoNoiseTexture; // 랜덤 회전 벡터 저장용
+    std::vector<glm::vec3> m_ssaoSamples; // 커널 샘플 저장
+    float m_ssaoRadius { 1.0f }; // 커널 반구 반지름
 };
 
 #endif
