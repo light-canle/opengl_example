@@ -1241,3 +1241,127 @@ m_deferLightProgram->SetUniform("useSsao", m_useSsao ? 1 : 0);
 occlusion = 1.0 - (occlusion / KERNEL_SIZE);
 fragColor = pow(occlusion, power);
 ```
+
+### PBR (physical based rendering)
+
+- 물리적인 방식을 근사하여 빛을 모사하는 방식으로 Phong shading보다 더 사실적인 방식이다.
+- Microfacet model, 에너지 보존 법칙, BRDF를 구현해야 PBR이라고 할 수 있다.
+- 물리적인 파라미터로 물체의 재질을 디자인할 수 있다.
+
+#### Microfacet model
+
+- 현실에서 모든 표면을 확대해보면 매우 작은 완전 반사 거울면으로 이루어져 있는데 이 면들을 미세면(microfacet)라고 한다.
+- 거친면에서는 반사광이 분산되어 빛에 의한 하이라이트가 넓어지고, 부드러운 면에서는 반사광이 균일해서 빛에 의한 하이라이트가 좁다.
+- 미세면은 너무 작기 때문에 컴퓨터 픽셀 레벨에서 구분하는 것은 불가능하다. 그래서 그래픽스에서는 roughness라는 표면의 거친 정도를 나타내는 파라미터를 이용해서 면의 거친 정도를 통계적으로 근사해서 표현한다. roughness가 클 수록 거친 면인 것이다. (roughness의 정확한 정의는 halfway 벡터에 정렬된 미세면의 비율을 뜻한다.)
+
+#### 에너지 보존 법칙(Energy conservation)
+
+- PBR에서의 에너지 보존 법칙은 출력되는 빛의 에너지는 입력되는 빛의 에너지를 초과할 수 없다는 것이다.
+- 빛의 하이라이트 면적이 클 수록 밝기가 줄어드는 이유가 이것 때문이다.
+- 입사광이 물체에 닿으면 굴절광과 반사광으로 나뉘게 된다. 이때 이들의 합산은 입사한 빛의 에너지를 초과할 수 없다.
+- 굴절된 빛은 표면의 입자와 충돌한 뒤 흡수되어 열 에너지로 전환되거나 임의의 방향으로 반사될 수도 있다.
+- 이때 빛이 반사되거나 굴절되는 정도는 물체의 재질마다 다를 것이다. 유전체(dielectric, 부도체라고도 함)에서는 입사한 빛 중 일부가 재질 표면 입자에 부딪히다 출력되고, 금속 재질의 물체에서는 굴절광이 모두 흡수되어 분산광 색이 없어진다.
+- 여기서 고려할 수 있는 또 다른 파라미터가 바로 metallic(금속성)으로, 물체가 얼마나 금속에 가까운 지를 나타내는 수치이다. 0이면 완전 비금속, 1이면 완전 금속성을 띄는 물체로 base color의 영향을 거의 받지 않고 반사되는 빛의 색을 띄게 된다.
+- 에너지 보존 법칙을 고려하여 반사광과 분산광을 계산할 때는 후술할 BRDF를 이용해 specular의 비율을 구한뒤 그 비율을 1에서 빼는 방식으로 diffuse의 비율을 구한다.
+
+#### Reflectance equation
+
+- 특정 위치 p에서 출사 방향 벡터(빛이 반사되어 나오는 방향) $\omega_o$ 로 나오는 빛의 에너지 크기를 나타내는 방정식이다. - p를 중심으로 하는 반구 내에 들어오는 모든 빛의 방향을 고려하므로 입사각에 대한 적분 형태로 나타낸다.
+![PBR1](/note_image/PBR1.jpg)
+- Radiance는 광원으로부터 $\Phi$만큼의 에너지가 $\theta$의 각도로 입사했을 때 단위 면적당 방출된 전자기파의 양으로 아래의 식으로 나타낸다. $\omega$ 는 단위 구에 투영한 면적과 각도를 가진 도형이고, I는 단위 구체 상의 면적당 광원의 세기를 뜻한다.
+![PBR2](/note_image/PBR2.jpg)
+- 이 공식을 쉐이더에서 구현할 때에는 리만 합의 형태로 for 문을 사용해서 계산한다.
+
+```glsl
+int steps = 100;
+float sum = 0.0f;
+vec3 P = ...;
+vec3 Wo = ...;
+vec3 N = ...;
+float dW = 1.0f / steps;
+for(int i = 0; i < steps; ++i) {
+    vec3 Wi = getNextIncomingLightDir(i);
+    sum += Fr(P, Wi, Wo) * L(P, Wi) * dot(N, Wi) * dW;
+}
+```
+
+#### BRDF (Bidirectional Reflective Distribution Function)
+
+- BRDF (양방향 반사도 분포 함수)는 특정 입사각으로 들어온 광선이 반사광에 얼마나 기여하는 지에 대한 분포 함수이다. 입사각, 출사각, normal vector, roughness를 입력으로 받는다. (물체의 재질마다 다르다.)
+![PBR3](/note_image/PBR3.jpg)
+- $k_{d}$ 는 굴절되어 들어오는 빛의 비율, $k_{s}$ 는 반사되어 나가는 빛의 비율이다. $f_{lambert}$ 는 램버트 반사율로 아래와 같이 정의된다.
+![PBR4](/note_image/PBR4.jpg)
+- 여기서 c는 물체의 albedo - 기본색(RGBA)를 나타낸다.
+- $f_{cook-torrance}$ 는 3가지 함수의 곱을 정규화한 형태로 아래와 같이 구성되어 있다.
+![PBR5](/note_image/PBR5.jpg)
+- Normal Distribution Function는 표면의 거칠기에 따라 미세면들이 얼마나 halfway vector와 정렬되어 있는지를 계산하는 함수이다. halfway vector와 미세면의 법선 벡터가 일치하면 거울면 반사가 일어나므로 Roughness 수치가 작을수록 정반사가 커져 주변 환경이 잘 비추어 보일 것이다. 통계적 근사 함수인 Trowbridge-Reitz GGX를 사용해서 표현한다.
+![PBR6](/note_image/PBR6.jpg)
+
+```glsl
+float DistributionGGX(vec3 N, vec3 H, float a) {
+    float a2 = a*a;
+    float NdotH = max(dot(N, H), 0.0);
+    float NdotH2 = NdotH*NdotH;
+
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+
+    return a2 / denom;
+}
+```
+
+- Geometry Function는 미세면으로 인해 shadowing과 masking이 발생하는 정도를 계산해주는 함수이다. 미세면이 거칠수록 빛이 미세면 안에서 그림자가 지거나 반사된 빛이 다른 미세면에 가려서 카메라 시선에서는 보이지 않게 될 가능성이 있다. 이 함수가 0이면, 미세면에 의해 반사된 빛이 막힌다는 뜻이고, 1이면 미세면에 의해 막히는 빛이 없다는 뜻이다. 근사 함수인 SchlickGGX를 사용하는데, 관찰자가 보는 방향과, 빛의 방향 모두를 고려하는 것이 좋으므로 이 근사 함수를 각각 v와 l에 대해 적용한 것을 곱해서 사용한다.
+![PBR7](/note_image/PBR7.jpg)
+
+```glsl
+float GeometrySchlickGGX(float NdotV, float k) {
+    float nom = NdotV;
+    float denom = NdotV * (1.0 - k) + k;
+    return nom / denom;
+}
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float k) {
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float ggx1 = GeometrySchlickGGX(NdotV, k);
+    float ggx2 = GeometrySchlickGGX(NdotL, k);
+    return ggx1 * ggx2;
+}
+```
+
+- Fresnel Equation는 서로 다른 각도의 표면에서 반사되는 빛의 비율을 계산하는 함수이다. Fresnel 현상이란, 물체를 거의 직각 방향으로 바라보았을 때 specualr light가 보다 밝게 보이는 현상을 말한다. $F_{0}$는 표면의 기본 반사율로 재질마다 다르다. 근사 함수인 Schlick Approximation으로 나타낸다.
+![PBR8](/note_image/PBR8.jpg)
+
+- 재질에 따른 기본 반사율 (<https://learnopengl.com/PBR/Theory>의 표에서 발췌했다.)
+
+| 재질 | $F_{0}$ (Linear) | $F_{0}$ (sRGB) |
+|---|---|---|
+| 물 | (0.02, 0.02, 0.02) | (0.15, 0.15, 0.15)|
+| 플라스틱/유리 | (0.03, 0.03, 0.03) | (0.21, 0.21, 0.21) |
+| 다이아몬드 | (0.17, 0.17, 0.17) | (0.45, 0.45, 0.45) |
+| 철 | (0.56, 0.57, 0.58) | (0.77, 0.78, 0.78) |
+| 구리 | (0.95, 0.64, 0.54) | (0.98, 0.82, 0.76) |
+| 금 | (1.00, 0.71, 0.29) | (1.00, 0.86, 0.57) |
+| 알루미늄 | (0.91, 0.92, 0.92) | (0.96, 0.96, 0.97) |
+| 은 | (0.95, 0.93, 0.88) | (0.98, 0.97, 0.95) |
+
+- 코드에서는 metallic 수치를 사용하는데, 비금속의 평균 $F_{0}$ 값인 0.04와 선형 보간한 값을 적용한다.
+
+```glsl
+vec3 fresnelSchlick(float cosTheta, vec3 surfaceColor, float metallic) {
+    vec3 F0 = vec3(0.04);
+    F0 = mix(F0, surfaceColor.rgb, metallic);
+    return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+}
+```
+
+- 이를 모두 적용하면 Reflectance equation을 아래와 같이 다시 쓸 수 있다.
+![PBR9](/note_image/PBR8.jpg)
+- 위의 수식에서 $k_{s}$가 빠져 있는 이유는 $F$에 $k_{s}$가 내장되어 있기 때문이다.
+
+> Source
+> <https://learnopengl.com/PBR/Theory><br>
+> <https://bbtarzan12.github.io/PBR/>
+
+#### PBR 재질의 파라미터
+
+- Albedo(물체 기본 색상), Normal(법선), Metallic(금속성), Roughness(거칠기), Ambient Occlusion(주변광 차페)을 파라미터로 갖는다.
