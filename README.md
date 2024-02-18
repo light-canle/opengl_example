@@ -1355,10 +1355,10 @@ vec3 fresnelSchlick(float cosTheta, vec3 surfaceColor, float metallic) {
 ```
 
 - 이를 모두 적용하면 Reflectance equation을 아래와 같이 다시 쓸 수 있다.
-![PBR9](/note_image/PBR8.jpg)
+![PBR9](/note_image/PBR9.jpg)
 - 위의 수식에서 $k_{s}$가 빠져 있는 이유는 $F$에 $k_{s}$가 내장되어 있기 때문이다.
 
-> Source
+> Source<br>
 > <https://learnopengl.com/PBR/Theory><br>
 > <https://bbtarzan12.github.io/PBR/>
 
