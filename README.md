@@ -1267,9 +1267,9 @@ fragColor = pow(occlusion, power);
 #### Reflectance equation
 
 - 특정 위치 p에서 출사 방향 벡터(빛이 반사되어 나오는 방향) $\omega_o$ 로 나오는 빛의 에너지 크기를 나타내는 방정식이다. - p를 중심으로 하는 반구 내에 들어오는 모든 빛의 방향을 고려하므로 입사각에 대한 적분 형태로 나타낸다.
-![PBR1](/note_image/PBR1.jpg)
+![PBR1]([/note_image/PBR1.jpg](https://github.com/light-canle/opengl_example/blob/main/note_image/PBR1.jpg))
 - Radiance는 광원으로부터 $\Phi$만큼의 에너지가 $\theta$의 각도로 입사했을 때 단위 면적당 방출된 전자기파의 양으로 아래의 식으로 나타낸다. $\omega$ 는 단위 구에 투영한 면적과 각도를 가진 도형이고, I는 단위 구체 상의 면적당 광원의 세기를 뜻한다.
-![PBR2](/note_image/PBR2.jpg)
+![PBR2]([/note_image/PBR2.jpg](https://github.com/light-canle/opengl_example/blob/main/note_image/PBR2.jpg))
 - 이 공식을 쉐이더에서 구현할 때에는 리만 합의 형태로 for 문을 사용해서 계산한다.
 
 ```glsl
@@ -1288,14 +1288,14 @@ for(int i = 0; i < steps; ++i) {
 #### BRDF (Bidirectional Reflective Distribution Function)
 
 - BRDF (양방향 반사도 분포 함수)는 특정 입사각으로 들어온 광선이 반사광에 얼마나 기여하는 지에 대한 분포 함수이다. 입사각, 출사각, normal vector, roughness를 입력으로 받는다. (물체의 재질마다 다르다.)
-![PBR3](/note_image/PBR3.jpg)
+![PBR3]([/note_image/PBR3.jpg](https://github.com/light-canle/opengl_example/blob/main/note_image/PBR3.jpg))
 - $k_{d}$ 는 굴절되어 들어오는 빛의 비율, $k_{s}$ 는 반사되어 나가는 빛의 비율이다. $f_{lambert}$ 는 램버트 반사율로 아래와 같이 정의된다.
-![PBR4](/note_image/PBR4.jpg)
+![PBR4]([/note_image/PBR4.jpg](https://github.com/light-canle/opengl_example/blob/main/note_image/PBR4.jpg))
 - 여기서 c는 물체의 albedo - 기본색(RGBA)를 나타낸다.
 - $f_{cook-torrance}$ 는 3가지 함수의 곱을 정규화한 형태로 아래와 같이 구성되어 있다.
-![PBR5](/note_image/PBR5.jpg)
+![PBR5]([/note_image/PBR5.jpg](https://github.com/light-canle/opengl_example/blob/main/note_image/PBR5.jpg))
 - Normal Distribution Function는 표면의 거칠기에 따라 미세면들이 얼마나 halfway vector와 정렬되어 있는지를 계산하는 함수이다. halfway vector와 미세면의 법선 벡터가 일치하면 거울면 반사가 일어나므로 Roughness 수치가 작을수록 정반사가 커져 주변 환경이 잘 비추어 보일 것이다. 통계적 근사 함수인 Trowbridge-Reitz GGX를 사용해서 표현한다.
-![PBR6](/note_image/PBR6.jpg)
+![PBR6]([/note_image/PBR6.jpg](https://github.com/light-canle/opengl_example/blob/main/note_image/PBR6.jpg))
 
 ```glsl
 float DistributionGGX(vec3 N, vec3 H, float a) {
@@ -1311,7 +1311,7 @@ float DistributionGGX(vec3 N, vec3 H, float a) {
 ```
 
 - Geometry Function는 미세면으로 인해 shadowing과 masking이 발생하는 정도를 계산해주는 함수이다. 미세면이 거칠수록 빛이 미세면 안에서 그림자가 지거나 반사된 빛이 다른 미세면에 가려서 카메라 시선에서는 보이지 않게 될 가능성이 있다. 이 함수가 0이면, 미세면에 의해 반사된 빛이 막힌다는 뜻이고, 1이면 미세면에 의해 막히는 빛이 없다는 뜻이다. 근사 함수인 SchlickGGX를 사용하는데, 관찰자가 보는 방향과, 빛의 방향 모두를 고려하는 것이 좋으므로 이 근사 함수를 각각 v와 l에 대해 적용한 것을 곱해서 사용한다.
-![PBR7](/note_image/PBR7.jpg)
+![PBR7]([/note_image/PBR7.jpg](https://github.com/light-canle/opengl_example/blob/main/note_image/PBR7.jpg))
 
 ```glsl
 float GeometrySchlickGGX(float NdotV, float k) {
@@ -1329,7 +1329,7 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float k) {
 ```
 
 - Fresnel Equation는 서로 다른 각도의 표면에서 반사되는 빛의 비율을 계산하는 함수이다. Fresnel 현상이란, 물체를 거의 직각 방향으로 바라보았을 때 specualr light가 보다 밝게 보이는 현상을 말한다. $F_{0}$는 표면의 기본 반사율로 재질마다 다르다. 근사 함수인 Schlick Approximation으로 나타낸다.
-![PBR8](/note_image/PBR8.jpg)
+![PBR8]([/note_image/PBR8.jpg](https://github.com/light-canle/opengl_example/blob/main/note_image/PBR8.jpg))
 
 - 재질에 따른 기본 반사율 (<https://learnopengl.com/PBR/Theory>의 표에서 발췌했다.)
 
@@ -1355,7 +1355,7 @@ vec3 fresnelSchlick(float cosTheta, vec3 surfaceColor, float metallic) {
 ```
 
 - 이를 모두 적용하면 Reflectance equation을 아래와 같이 다시 쓸 수 있다.
-![PBR9](/note_image/PBR9.jpg)
+![PBR9]([/note_image/PBR9.jpg](https://github.com/light-canle/opengl_example/blob/main/note_image/PBR9.jpg))
 - 위의 수식에서 $k_{s}$가 빠져 있는 이유는 $F$에 $k_{s}$가 내장되어 있기 때문이다.
 
 > Source<br>
