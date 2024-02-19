@@ -184,3 +184,46 @@ void Mesh::ComputeTangents(std::vector<Vertex>& vertices, const std::vector<uint
         vertices[i].tangent = glm::normalize(tangents[i]);
     }
 }
+
+MeshUPtr Mesh::CreateSphere(uint32_t latiSegmentCount, uint32_t longiSegmentCount) {
+    std::vector<Vertex> vertices;
+    std::vector<uint32_t> indices;
+
+    uint32_t circleVertCount = longiSegmentCount + 1;
+    vertices.resize((latiSegmentCount + 1) * circleVertCount);
+    // 위도와 경도가 주어질 때 점의 위치를 구면 좌표계에서 찾는다.
+    for (uint32_t i = 0; i <= latiSegmentCount; i++) {
+        float v = (float)i / (float)latiSegmentCount;
+        float phi = (v - 0.5f) * glm::pi<float>();
+        auto cosPhi = cosf(phi);
+        auto sinPhi = sinf(phi);
+        for (uint32_t j = 0; j <= longiSegmentCount; j++) {
+            float u = (float)j / (float)longiSegmentCount;
+            float theta = u * glm::pi<float>() * 2.0f;
+            auto cosTheta = cosf(theta);
+            auto sinTheta = sinf(theta);
+            auto point = glm::vec3(
+                cosPhi * cosTheta, sinPhi, -cosPhi * sinTheta);
+        
+            vertices[i * circleVertCount + j] = Vertex {
+                point * 0.5f, point, glm::vec2(u, v), glm::vec3(0.0f)
+            };
+        }
+    }
+
+    indices.resize(latiSegmentCount * longiSegmentCount * 6);
+    for (uint32_t i = 0; i < latiSegmentCount; i++) {
+        for (uint32_t j = 0; j < longiSegmentCount; j++) {
+            uint32_t vertexOffset = i * circleVertCount + j;
+            uint32_t indexOffset = (i * longiSegmentCount + j) * 6;
+            indices[indexOffset    ] = vertexOffset;
+            indices[indexOffset + 1] = vertexOffset + 1;
+            indices[indexOffset + 2] = vertexOffset + 1 + circleVertCount;
+            indices[indexOffset + 3] = vertexOffset;
+            indices[indexOffset + 4] = vertexOffset + 1 + circleVertCount;
+            indices[indexOffset + 5] = vertexOffset + circleVertCount;
+        }
+    }
+
+    return Create(vertices, indices, GL_TRIANGLES);
+}

@@ -38,10 +38,12 @@ private:
     bool Init();
     // 프로그램 저장용 포인터
     ProgramUPtr m_simpleProgram;
+    ProgramUPtr m_pbrProgram;
 
     // Mesh
     MeshUPtr m_box;
     MeshUPtr m_plane;
+    MeshUPtr m_sphere;
 
     // camera parameter
     glm::vec3 m_cameraPos { glm::vec3(0.0f, 2.5f, 8.0f) }; // p = e 카메라 위치 벡터
@@ -55,6 +57,22 @@ private:
     // 현재 화면 크기
     int m_width { WINDOW_WIDTH };
     int m_height { WINDOW_HEIGHT };
+
+    // 빛
+    struct Light {
+        glm::vec3 position { glm::vec3(0.0f, 0.0f, 0.0f) };
+        glm::vec3 color { glm::vec3(1.0f, 1.0f, 1.0f) };
+    };
+    std::vector<Light> m_lights;
+
+    // 머터리얼(재질)
+    struct Material {
+        glm::vec3 albedo { glm::vec3(1.0f, 1.0f, 1.0f) };
+        float roughness { 0.5f };
+        float metallic { 0.5f };
+        float ao { 0.1f };
+    };
+    Material m_material;
 };
 
 #endif

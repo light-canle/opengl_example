@@ -1365,3 +1365,55 @@ vec3 fresnelSchlick(float cosTheta, vec3 surfaceColor, float metallic) {
 #### PBR 재질의 파라미터
 
 - Albedo(물체 기본 색상), Normal(법선), Metallic(금속성), Roughness(거칠기), Ambient Occlusion(주변광 차페)을 파라미터로 갖는다.
+
+#### PBR 구현 (https://www.youtube.com/watch?v=HuGEcaMpqEQ&list=PLvNHCGtd4kh_cYLKMP_E-jwF3YKpDP4hf&index=42))
+
+- 코드 간소화를 위해 context.h와 context.cpp에서 핵심적인 내용을 제외한 거의 모든 렌더링 코드와 맴버를 지웠다.
+- PBR 재질의 파라미터 값의 변화를 잘 확인하기 위해 구 형태의 매시를 그리기 위해 mesh.h, mesh.cpp에 구를 그리는 코드를 추가했다. context.cpp의 DrawScene에서는 구를 7x7의 격자 형태로 배치했다. 그리고 각각의 구마다 roughness와 metallic 수치를 다르게 했다.
+
+```c++
+program->Use();
+ 
+const int sphereCount = 7;
+const float offset = 1.2f;
+// 7x7 배치로 49개의 구를 그린다.
+for (int j = 0; j < sphereCount; j++) {
+    float y = ((float)j - (float)(sphereCount - 1) * 0.5f) * offset;
+    for (int i = 0; i < sphereCount; i++) {
+        float x = ((float)i - (float)(sphereCount - 1) * 0.5f) * offset;
+        auto modelTransform =
+            glm::translate(glm::mat4(1.0f), glm::vec3(x, y, 0.0f));
+        auto transform = projection * view * modelTransform;
+        program->SetUniform("transform", transform);
+        program->SetUniform("modelTransform", modelTransform);
+        program->SetUniform("material.roughness",
+            (float)(i + 1) / (float)sphereCount);
+        program->SetUniform("material.metallic",
+            (float)(j + 1) / (float)sphereCount);
+        m_sphere->Draw(program);
+    }
+}
+```
+
+- PBR 구현을 위한 쉐이더를 추가했다. vertex shader는 lighting.vert와 거의 동일하고, fragment shader에서는 위에서 설명한 Reflectance equation과 BRDF를 코드로 구현했다.
+- context.cpp의 Render 함수에서 새로운 프로그램을 사용하는 부분을 추가한다.
+
+```c++
+m_pbrProgram->Use();
+m_pbrProgram->SetUniform("viewPos", m_cameraPos);
+m_pbrProgram->SetUniform("material.albedo", m_material.albedo);
+m_pbrProgram->SetUniform("material.ao", m_material.ao);
+for (size_t i = 0; i < m_lights.size(); i++) {
+    auto posName = fmt::format("lights[{}].position", i);
+    auto colorName = fmt::format("lights[{}].color", i);
+    m_pbrProgram->SetUniform(posName, m_lights[i].position);
+    m_pbrProgram->SetUniform(colorName, m_lights[i].color);
+}
+DrawScene(view, projection, m_pbrProgram.get());
+```
+
+- 실행한 모습 (설명을 위해 그림 편집)
+![PBR10](/note_image/PBR10.jpg)
+- 왼쪽에서 오른쪽으로 갈 수록 roughness가 증가하고, 아래에서 위로 갈수록 metallic이 증가한다. roughness가 증가할 수록 빛에 의한 하이라이트 면적이 넓어짐을 확인할 수 있고, metallic이 증가할 수록 물체의 고유 albedo 보다는 주변 환경에 의한 모습이 물체에 비춰지는 것을 확인할 수 있다.(현재는 주변 환경이 검은 배경이기 때문에 metallic이 높은 물체일 수록 검게 보인다.)
+- 물체들을 뒤에서 보면 Fresnel 효과에 의해 가장자리에 하이라이팅이 됨을 확인할 수 있다.(albedo를 빨강색으로 함)
+![PBR11](/note_image/PBR11.jpg)

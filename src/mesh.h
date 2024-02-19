@@ -42,6 +42,8 @@ public:
     static MeshUPtr MakeBox();
     // plane을 생성하는 함수
     static MeshUPtr CreatePlane();
+    // sphere를 생성하는 함수
+    static MeshUPtr CreateSphere(uint32_t latiSegmentCount = 16, uint32_t longiSegmentCount = 32);
 
     const VertexLayout* GetVertexLayout() const { return m_vertexLayout.get(); }
     BufferPtr GetVertexBuffer() const { return m_vertexBuffer; }
