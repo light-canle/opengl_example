@@ -1,0 +1,5 @@
+대부분 이미지는 이 강의의 원작 튜토리얼인 https://learnopengl.com/ 의 이미지를 가져온 것입니다.
+
+grass.png는 이 강의의 자료 사이트 https://rinthel.github.io/opengl_course/ 의 12번 노트 Advanced Feature Part. 2의 65번 슬라이드에서 가져왔습니다.
+
+rustediron2 PBR 텍스쳐는 https://freepbr.com/materials/rusted-iron-pbr-metal-material-alt/ 에서 가져온 것입니다.

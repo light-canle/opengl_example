@@ -67,9 +67,10 @@ private:
 
     // 머터리얼(재질)
     struct Material {
-        glm::vec3 albedo { glm::vec3(1.0f, 1.0f, 1.0f) };
-        float roughness { 0.5f };
-        float metallic { 0.5f };
+        TexturePtr albedo;
+        TexturePtr roughness;
+        TexturePtr metallic;
+        TexturePtr normal;
         float ao { 0.1f };
     };
     Material m_material;

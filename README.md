@@ -5,6 +5,7 @@
 
 - 좋은 수업과 자료를 모든 사람을 위해 공개해 주신 권지용 교수님께 감사드립니다.
 - 텍스쳐와 3D 모델은 원본 튜토리얼인 <https://learnopengl.com> 에서 가져온 것입니다.
+- PBR 텍스쳐는 <https://freepbr.com/materials/rusted-iron-pbr-metal-material-alt/> 에서 가져왔습니다.
 - Dependency.cmake 파일은 windows 운영체제를 기준으로 작성되었고, 다른 운영체제에서는 그대로 사용시 실행되지 않을 수도 있습니다.
 - 사용된 라이브러리들은 그 라이브러리의 최신 버전이 아닌 강의의 버전과 동일한 것을 사용했습니다. 최신 버전의 라이브러리에서는 이 코드가 동작하지 않을 수도 있습니다.
 - 현재 8-2 코드에는 오타가 있습니다. 실행은 되지만 빛이 이상하게 동작할 수 있는데, 8-2 commit에 어떤 오타가 있는지 메모가 있으므로 참고해서 고치면 문제 없을 것입니다.
@@ -1413,7 +1414,55 @@ DrawScene(view, projection, m_pbrProgram.get());
 ```
 
 - 실행한 모습 (설명을 위해 그림 편집)
-![PBR10](/note_image/PBR10.jpg)
+![PBR10](/note_image/PBR10.png)
 - 왼쪽에서 오른쪽으로 갈 수록 roughness가 증가하고, 아래에서 위로 갈수록 metallic이 증가한다. roughness가 증가할 수록 빛에 의한 하이라이트 면적이 넓어짐을 확인할 수 있고, metallic이 증가할 수록 물체의 고유 albedo 보다는 주변 환경에 의한 모습이 물체에 비춰지는 것을 확인할 수 있다.(현재는 주변 환경이 검은 배경이기 때문에 metallic이 높은 물체일 수록 검게 보인다.)
 - 물체들을 뒤에서 보면 Fresnel 효과에 의해 가장자리에 하이라이팅이 됨을 확인할 수 있다.(albedo를 빨강색으로 함)
-![PBR11](/note_image/PBR11.jpg)
+![PBR11](/note_image/PBR11.png)
+
+#### PBR 텍스쳐 맵 이용하기
+
+- 이제 PBR 텍스쳐를 가져와서 그려보는 것을 할 것이다.
+- pbr_texture 쉐이더를 만든다. vertex shader에서는 normal map을 추가로 받고 쉐이더 안에서 TBN 행렬을 계산해서 반환한다.
+
+```glsl
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec3 aNormal;
+layout (location = 2) in vec2 aTexCoord;
+layout (location = 3) in vec3 aTangent;
+
+[...]
+
+mat4 invTransModelTransform = transpose(inverse(modelTransform));
+vec3 normal = normalize((invTransModelTransform * vec4(aNormal, 0.0)).xyz);
+vec3 tangent = normalize((invTransModelTransform * vec4(aTangent, 0.0)).xyz);
+vec3 binormal = cross(normal, tangent);
+TBN = mat3(tangent, binormal, normal);
+```
+
+- fragment shader에서는 텍스쳐에서 재질의 정보를 받기 위해서 Material struct를 수정하고 main 함수의 초반부분을 수정했다.
+
+```glsl
+// PBR 머터리얼 파라미터
+struct Material {
+    sampler2D albedo;
+    sampler2D metallic;
+    sampler2D roughness;
+    sampler2D normal;
+    float ao;
+};
+
+[...]
+
+// 텍스쳐 맵에서 albedo, metallic, roughness, normal을 가져온다.
+vec3 albedo = pow(texture(material.albedo, texCoord).rgb, vec3(2.2)); // sRGB를 linear로 변환
+float metallic = texture(material.metallic, texCoord).r;
+float roughness = texture(material.roughness, texCoord).r;
+float ao = material.ao;
+vec3 fragNormal = texture(material.normal, texCoord).rgb * 2.0 - 1.0;
+fragNormal = TBN * fragNormal;
+```
+
+- context 클래스에서는 텍스쳐맵을 받기 위한 맴버를 추가하고, 텍스쳐 이미지를 불러오며 불러온 이미지를 바인딩해서 쉐이더에 전달해주는 코드가 추가되었다.
+
+- 실행한 모습
+![PBR12](/note_image/PBR12.png)

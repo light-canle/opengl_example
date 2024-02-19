@@ -95,9 +95,19 @@ bool Context::Init() {
     m_simpleProgram = Program::Create("./shader/simple.vert", "./shader/simple.frag");
     if (!m_simpleProgram)
         return false;
-    m_pbrProgram = Program::Create("./shader/pbr.vert", "./shader/pbr.frag");
+    m_pbrProgram = Program::Create("./shader/pbr_texture.vert", "./shader/pbr_texture.frag");
     if (!m_pbrProgram)
         return false;
+
+    // 이미지(텍스쳐 맵) 불러오기
+    m_material.albedo = Texture::CreateFromImage(
+        Image::Load("./image/rustediron2_basecolor.png").get());
+    m_material.roughness = Texture::CreateFromImage(
+        Image::Load("./image/rustediron2_roughness.png").get());
+    m_material.metallic = Texture::CreateFromImage(
+        Image::Load("./image/rustediron2_metallic.png").get());
+    m_material.normal = Texture::CreateFromImage(
+        Image::Load("./image/rustediron2_normal.png").get());
     
     // 빛 생성
     m_lights.push_back({ glm::vec3(5.0f, 5.0f, 6.0f), glm::vec3(40.0f, 40.0f, 40.0f) });
@@ -123,10 +133,6 @@ void Context::DrawScene(const glm::mat4& view, const glm::mat4& projection, cons
             auto transform = projection * view * modelTransform;
             program->SetUniform("transform", transform);
             program->SetUniform("modelTransform", modelTransform);
-            program->SetUniform("material.roughness",
-                (float)(i + 1) / (float)sphereCount);
-            program->SetUniform("material.metallic",
-                (float)(j + 1) / (float)sphereCount);
             m_sphere->Draw(program);
         }
     }
@@ -156,9 +162,9 @@ void Context::Render(){
             ImGui::DragFloat3("light.color", glm::value_ptr(m_lights[lightIndex].color), 0.1f);
         }
         if (ImGui::CollapsingHeader("material")) {
-            ImGui::ColorEdit3("mat.albedo", glm::value_ptr(m_material.albedo));
-            ImGui::SliderFloat("mat.roughness", &m_material.roughness, 0.0f, 1.0f);
-            ImGui::SliderFloat("mat.metallic", &m_material.metallic, 0.0f, 1.0f);
+            // ImGui::ColorEdit3("mat.albedo", glm::value_ptr(m_material.albedo));
+            // ImGui::SliderFloat("mat.roughness", &m_material.roughness, 0.0f, 1.0f);
+            // ImGui::SliderFloat("mat.metallic", &m_material.metallic, 0.0f, 1.0f);
             ImGui::SliderFloat("mat.ao", &m_material.ao, 0.0f, 1.0f);
         }
     }
@@ -184,8 +190,20 @@ void Context::Render(){
     // forward rendering - 이 아래부터 그림을 그림
     m_pbrProgram->Use();
     m_pbrProgram->SetUniform("viewPos", m_cameraPos);
-    m_pbrProgram->SetUniform("material.albedo", m_material.albedo);
     m_pbrProgram->SetUniform("material.ao", m_material.ao);
+    m_pbrProgram->SetUniform("material.albedo", 0);
+    m_pbrProgram->SetUniform("material.roughness", 1);
+    m_pbrProgram->SetUniform("material.metallic", 2);
+    m_pbrProgram->SetUniform("material.normal", 3);
+    glActiveTexture(GL_TEXTURE0);
+    m_material.albedo->Bind();
+    glActiveTexture(GL_TEXTURE1);
+    m_material.roughness->Bind();
+    glActiveTexture(GL_TEXTURE2);
+    m_material.metallic->Bind();
+    glActiveTexture(GL_TEXTURE3);
+    m_material.normal->Bind();
+    glActiveTexture(GL_TEXTURE0);
     for (size_t i = 0; i < m_lights.size(); i++) {
         auto posName = fmt::format("lights[{}].position", i);
         auto colorName = fmt::format("lights[{}].color", i);
