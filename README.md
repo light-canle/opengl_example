@@ -1466,3 +1466,222 @@ fragNormal = TBN * fragNormal;
 
 - 실행한 모습
 ![PBR12](/note_image/PBR12.png)
+
+### IBL (Image Based Lighting)
+
+- Enviornment map을 하나의 큰 광원으로 사용하는 기술이다.(주변 배경으로부터의 빛을 적용하는 기술)
+- cubemap을 이루는 각 픽셀이 광원이 된다.
+- IBL을 사용하면 물체가 주변 배경 안에 있는 느낌을 살려낼 수 있다.
+- IBL에서는 cubemap의 각 픽셀이 광원이 되기 때문에 모든 방향에서 오는 빛을 고려해야 한다.
+
+#### IBL - Diffuse irradiance
+
+- 우리가 앞에서 보았던 reflectance equation에서 적분 식을 diffuse term과 specular term으로 분해했을 때 diffuse term을 diffuse irradiance라고 한다.
+
+- p를 enviornment map의 한가운데 지점이라고 가정하면 적분식은 $\omega_{i}$ 에 대한 식으로 볼 수 있다.
+- 출력 방향 $\omega_{o}$ 에 대해서 반구 내 모든 입력 방향 $\omega_{i}$ 에 대한 빛의 가중치(코사인 값)를 합산함으로써 Diffuse irradiance를 계산할 수 있다.
+
+##### HDR 맵
+
+- 일반적인 enviornment map으로는 제대로 된 irradiance map을 만들어 낼 수 없는데, 일반적인 텍스쳐는 색상 값이 0~1사이로 제한되기 때문이다. 그래서 1 이상의 값을 저장할 수 있는 hdr 포맷의 enviornment map을 사용한다.
+- hdr 포맷의 이미지를 가져오기 위해서는 채널의 크기가 float (4바이트)인 이미지를 읽을 수 있도록 지금까지 만든 코드에 수정이 필요하다. image.h와 image.cpp에서 채널 당 바이트 수를 저장하는 새로운 맴버를 만들고, 파일형식이 .hdr이면 채널 당 바이트 수를 4로 지정하는 부분을 새로 추가했다.
+
+```c++
+auto ext = filepath.substr(filepath.find_last_of('.'));
+// hdr 형식의 이미지는 채널이 float이다.
+if (ext == ".hdr" || ext == ".HDR") {
+    m_data = (uint8_t*)stbi_loadf(filepath.c_str(),
+    &m_width, &m_height, &m_channelCount, 0);
+    m_bytePerChannel = 4;
+}
+else {
+    m_data = stbi_load(filepath.c_str(), &m_width, &m_height, &m_channelCount, 0);
+    m_bytePerChannel = 1;
+}
+```
+
+- texture 클래스에서도 image로 부터 텍스쳐를 만들어내는 SetTextureFromImage() 함수에서 이미지의 채널 당 바이트 수가 4인 경우 16F 형식으로 지정하도록 수정했다.
+
+```c++
+// .hdr과 같이 채널 하나가 float인 이미지 형식의 경우에는 16F 형식으로 지정한다.
+if (image->GetBytePerChannel() == 4) {
+    m_type = GL_FLOAT;
+    switch (image->GetChannelCount()) {
+        default: break;
+        case 1: m_format = GL_R16F; break;
+        case 2: m_format = GL_RG16F; break;
+        case 3: m_format = GL_RGB16F; break;
+        case 4: m_format = GL_RGBA16F; break;
+    }
+}
+```
+
+- HDR 맵은 구의 표면을 하나의 평면에 펼쳐놓은 형태인 equirectangular로 이 자체로 enviornment map으로 바꿀 수는 없다. 그래서 구면 좌표계의 한 점을 직교 좌표계의 점으로 바꿔서 cubemap 형태로 변환하는 spherical_map 쉐이더를 만든다.
+- vertex shader
+
+```glsl
+#version 330 core
+// skybox.vert와 거의 비슷함
+layout (location = 0) in vec3 aPos;
+out vec3 localPos;
+uniform mat4 transform;
+
+void main() {
+    gl_Position = transform * vec4(aPos, 1.0);
+    localPos = aPos;
+}
+```
+
+- fragment shader
+
+```glsl
+#version 330 core
+out vec4 fragColor;
+in vec3 localPos;
+uniform sampler2D tex;
+
+const vec2 invPi = vec2(0.1591549, 0.3183098862);
+// 텍스쳐 좌표로 변환
+vec2 SampleSphericalMap(vec3 v) {
+    return vec2(atan(v.z, v.x), asin(v.y)) * invPi + 0.5;
+}
+
+void main() {
+    vec2 uv = SampleSphericalMap(normalize(localPos)); // normalize
+    vec3 color = texture(tex, uv).rgb;
+    fragColor = vec4(color, 1.0);
+}
+```
+
+- context.h에 m_hdrMap, m_sphericalMapProgram맴버를 추가하고, context.cpp에서 두 맴버를 초기화한 뒤 hdr 맵을 큐브맵 텍스쳐 형태로 변환한 것을 큐브에 그리도록 한다. (이것은 중간 과정을 위한 코드로 Render() 함수에서 사용되었다. 완성된 코드에는 빠져있다.)
+
+```c++
+m_sphericalMapProgram->Use();
+m_sphericalMapProgram->SetUniform("transform",
+projection * view *
+glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 2.0f)));
+m_sphericalMapProgram->SetUniform("tex", 0);
+m_hdrMap->Bind();
+m_box->Draw(m_sphericalMapProgram.get());
+```
+
+- 기존의 큐브맵은 6장의 이미지로부터 만들어내지만, hdr 맵은 1장의 사진에서 cubemap을 가져오는 것이므로, 다른 방식으로 큐브맵을 불러올 필요가 있다. 그래서 타입만 지정된 빈 텍스쳐를 만든 뒤, 그 텍스쳐에 이미지 데이터를 붙이는 방식을 사용해서 변환된 hdr 맵을 cube map으로 바꾸어준다. (texture 파일에서 수정) 그리고 hdr은 채널이 4바이트 이므로, 이미지 형식에 따라 채널 당 바이트 맴버를 수정할 수 있도록 한다. 
+
+```c++
+CubeTextureUPtr CubeTexture::Create(int width, int height,
+    uint32_t format, uint32_t type) {
+    auto texture = CubeTextureUPtr(new CubeTexture());
+    texture->Init(width, height, format, type);
+    return std::move(texture);
+}
+```
+
+- 그리고 큐브 맵을 color attachment로 사용하는 또 다른 프레임버퍼도 필요하다. 그래서 framebuffer 파일에 새로운 클래스인 CubeFramebuffer를 추가했다.
+- 이후 enviornment map을 구현하기 위한 새로운 skybox_hdr 쉐이더를 만들어 준다.
+- vertex shader에서는 view matrix를 mat3 -> 다시 mat4로 변환하는 과정을 통해 rotation에 대한 정보만 남긴 뒤 그것을 projection matrix과 곱해준다. 그리고 gl_Position에는 xyww를 넣는데, 이렇게 되면 모든 z값에는 1이 들어가게 되고, depth test에 의해 enviornment map의 모든 픽셀은 항상 뒤에 그려지게 된다. 단, z = 1이므로 depth test의 규칙은 GL_LEQUAL로 지정해주어야 제대로 그려진다.
+
+```glsl
+#version 330 core
+
+layout (location = 0) in vec3 aPos;
+out vec3 localPos;
+
+uniform mat4 projection;
+uniform mat4 view;
+
+void main() {
+    localPos = aPos;
+    mat4 rotView = mat4(mat3(view)); // remove translation - rotation만 남게 된다.
+    vec4 clipPos = projection * rotView * vec4(localPos, 1.0);
+    gl_Position = clipPos.xyww; // skybox가 항상 뒤에 그려지게 된다.
+}
+```
+
+- fragment shader에서는 텍스쳐의 픽셀을 그려주는 역할을 하는데, hdr 맵이라서 범위가 1보다 클 수 있기 때문에 이를 0~1 범위로 다시 좁혀주어야 한다. 그래서 reinhard tone mapping을 사용해서 0 ~ 1의 범위로 지정해준뒤 1.0 / 2.2 승을 해주어 linear를 sRGB로 변환해준다.
+
+```glsl
+#version 330 core
+
+out vec4 fragColor;
+in vec3 localPos;
+
+uniform samplerCube cubeMap;
+
+void main() {
+    vec3 envColor = texture(cubeMap, localPos).rgb;
+    envColor = envColor / (envColor + vec3(1.0));   // reinhard
+    envColor = pow(envColor, vec3(1.0/2.2));    // to sRGB
+    fragColor = vec4(envColor, 1.0);
+}
+```
+
+- context 파일에 필요한 맴버를 추가하고 아래처럼 렌더링 코드를 넣어주면 환경 맵이 잘 나타나는 것을 확인할 수 있다.
+
+```c++
+glDepthFunc(GL_LEQUAL);
+m_skyboxProgram->Use();
+m_skyboxProgram->SetUniform("projection", projection);
+m_skyboxProgram->SetUniform("view", view);
+m_skyboxProgram->SetUniform("cubeMap", 0);
+m_hdrCubeMap->Bind();
+m_box->Draw(m_skyboxProgram.get());
+glDepthFunc(GL_LESS);
+```
+
+![PBR13](/note_image/PBR13.png)
+
+##### Diffuse irradiance 구현
+
+- enviornment map을 그렸으므로 이제 Diffuse irradiance를 구현해서 주변 환경의 빛이 물체에 은은하게 비춰지도록 할 것이다.
+- vertex shader는 skybox_hdr.vert를 그대로 사용하고, diffuse만을 위한 fragment shader를 만들어준다. 이 쉐이더에서는 텍스쳐에서 일정 간격으로 픽셀을 가져와 흐린 버전의 irradiance map을 만들어내는 역할을 한다.
+- 그리고 context.cpp의 Init() 함수에서 이것을 사용해서 irradiance map을 만든다.
+
+```c++
+m_diffuseIrradianceProgram = Program::Create(
+    "./shader/skybox_hdr.vert", "./shader/diffuse_irradiance.frag");
+m_diffuseIrradianceMap = CubeTexture::Create(64, 64, GL_RGB16F, GL_FLOAT);
+cubeFramebuffer = CubeFramebuffer::Create(m_diffuseIrradianceMap);
+glDepthFunc(GL_LEQUAL);
+m_diffuseIrradianceProgram->Use();
+m_diffuseIrradianceProgram->SetUniform("projection", projection);
+m_diffuseIrradianceProgram->SetUniform("cubeMap", 0);
+m_hdrCubeMap->Bind();
+glViewport(0, 0, 64, 64);
+for (int i = 0; i < (int)views.size(); i++) {
+    cubeFramebuffer->Bind(i);
+    glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    m_diffuseIrradianceProgram->SetUniform("view", views[i]);
+    m_box->Draw(m_diffuseIrradianceProgram.get());
+}
+glDepthFunc(GL_LESS);
+```
+
+- 테스트 목적으로 irradiance map을 그려보면 흐린 형태의 배경이 나온다.
+![PBR14](/note_image/PBR14.png)
+
+- 마지막으로 pbr.frag를 수정해서 이 irradiance map을 물체에 적용하는 일만 남았다. irradiance map을 받을 수 있도록 새로운 uniform 변수를 추가하고, irradiance map 모드일 때 사용할 다른 fresnel 함수를 정의한 후 useIrradiance가 1일 때 사용하도록 코드를 추가한다.
+
+```glsl
+uniform samplerCube irradianceMap;
+uniform int useIrradiance;
+
+// irradiance에서 사용하는 fresnel 함수
+vec3 FresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness) {
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
+}
+
+[...]
+
+if (useIrradiance == 1) {
+    vec3 kS = FresnelSchlickRoughness(dotNV, F0, roughness);
+    vec3 kD = 1.0 - kS;
+    vec3 irradiance = texture(irradianceMap, fragNormal).rgb;
+    vec3 diffuse = irradiance * albedo;
+    ambient = (kD * diffuse) * ao;
+}
+```
+
+- 이제 코드를 실행하면 아래처럼 된다. 위의 사진이 diffuse irradiance를 켠 모습, 아래 사진이 끈 모습이다. 위의 사진에서 물체에 배경의 빛이 비추어서 약간 더 밝은 것을 확인할 수 있다.
+![PBR15-1](/note_image/PBR15-1.png)
+![PBR15-2](/note_image/PBR15-2.png)

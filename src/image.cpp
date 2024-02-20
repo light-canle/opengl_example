@@ -21,7 +21,19 @@ Image::~Image() {
 // 파일 경로를 받아 stb 라이브러리를 사용해서 이미지 생성
 bool Image::LoadWithStb(const std::string& filepath, bool flipVertical) {
     stbi_set_flip_vertically_on_load(flipVertical); // true일 경우 상하 반전으로 이미지를 원래대로 나타나게 함
-    m_data = stbi_load(filepath.c_str(), &m_width, &m_height, &m_channelCount, 0);
+    
+    auto ext = filepath.substr(filepath.find_last_of('.'));
+    // hdr 형식의 이미지는 채널이 float이다.
+    if (ext == ".hdr" || ext == ".HDR") {
+        m_data = (uint8_t*)stbi_loadf(filepath.c_str(),
+        &m_width, &m_height, &m_channelCount, 0);
+        m_bytePerChannel = 4;
+    }
+    else {
+        m_data = stbi_load(filepath.c_str(), &m_width, &m_height, &m_channelCount, 0);
+        m_bytePerChannel = 1;
+    }
+    
     if (!m_data) {
         SPDLOG_ERROR("failed to load image: {}", filepath);
         return false;
@@ -30,20 +42,21 @@ bool Image::LoadWithStb(const std::string& filepath, bool flipVertical) {
 }
 
 // width x height 크기의 이미지 데이터를 만들어 냄
-ImageUPtr Image::Create(int width, int height, int channelCount) {
+ImageUPtr Image::Create(int width, int height, int channelCount, int bytePerChannel) {
     auto image = ImageUPtr(new Image());
-    if (!image->Allocate(width, height, channelCount))
+    if (!image->Allocate(width, height, channelCount, bytePerChannel))
         return nullptr;
     return std::move(image);
 }
 
 // 이미지가 들어갈 공간 할당
-bool Image::Allocate(int width, int height, int channelCount) {
+bool Image::Allocate(int width, int height, int channelCount, int bytePerChannel) {
     m_width = width;
     m_height = height;
     m_channelCount = channelCount;
+    m_bytePerChannel = bytePerChannel;
     // 메모리 할당
-    m_data = (uint8_t*)malloc(m_width * m_height * m_channelCount);
+    m_data = (uint8_t*)malloc(m_width * m_height * m_channelCount * m_bytePerChannel);
     return m_data ? true : false;
 }
 

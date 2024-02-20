@@ -6,6 +6,8 @@ in vec3 fragPos;
 out vec4 fragColor;
 
 uniform vec3 viewPos;
+uniform samplerCube irradianceMap;
+uniform int useIrradiance;
 
 struct Light {
     vec3 position;
@@ -60,6 +62,11 @@ vec3 FresnelSchlick(float cosTheta, vec3 F0) {
     return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
+// irradiance에서 사용하는 fresnel 함수
+vec3 FresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness) {
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
+}
+
 void main() {
     vec3 albedo = material.albedo;
     float metallic = material.metallic;
@@ -103,6 +110,14 @@ void main() {
     }
     // ao 맵으로 부터 주변광 색을 가져옴
     vec3 ambient = vec3(0.03) * albedo * ao;
+    // irradiance 사용
+    if (useIrradiance == 1) {
+        vec3 kS = FresnelSchlickRoughness(dotNV, F0, roughness);
+        vec3 kD = 1.0 - kS;
+        vec3 irradiance = texture(irradianceMap, fragNormal).rgb;
+        vec3 diffuse = irradiance * albedo;
+        ambient = (kD * diffuse) * ao;
+    }
     vec3 color = ambient + outRadiance;
 
     // Reinhard tone mapping + gamma correction - HDR 이미지 처리

@@ -39,11 +39,21 @@ private:
     // 프로그램 저장용 포인터
     ProgramUPtr m_simpleProgram;
     ProgramUPtr m_pbrProgram;
+    ProgramUPtr m_sphericalMapProgram;
+    ProgramUPtr m_skyboxProgram;
+    ProgramUPtr m_diffuseIrradianceProgram;
 
     // Mesh
     MeshUPtr m_box;
     MeshUPtr m_plane;
     MeshUPtr m_sphere;
+
+    // Texture
+    TextureUPtr m_hdrMap; // IBL용 hdr 맵
+
+    // CubeMap
+    CubeTexturePtr m_hdrCubeMap;
+    CubeTexturePtr m_diffuseIrradianceMap;
 
     // camera parameter
     glm::vec3 m_cameraPos { glm::vec3(0.0f, 2.5f, 8.0f) }; // p = e 카메라 위치 벡터
@@ -64,13 +74,13 @@ private:
         glm::vec3 color { glm::vec3(1.0f, 1.0f, 1.0f) };
     };
     std::vector<Light> m_lights;
+    bool m_useDiffuseIrradiance { true }; // diffuse irradinace 사용 여부
 
     // 머터리얼(재질)
     struct Material {
-        TexturePtr albedo;
-        TexturePtr roughness;
-        TexturePtr metallic;
-        TexturePtr normal;
+        glm::vec3 albedo { glm::vec3(1.0f, 1.0f, 1.0f) };
+        float roughness { 0.5f };
+        float metallic { 0.5f };
         float ao { 0.1f };
     };
     Material m_material;
