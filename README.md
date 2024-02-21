@@ -6,6 +6,7 @@
 - 좋은 수업과 자료를 모든 사람을 위해 공개해 주신 권지용 교수님께 감사드립니다.
 - 텍스쳐와 3D 모델은 원본 튜토리얼인 <https://learnopengl.com> 에서 가져온 것입니다.
 - PBR 텍스쳐는 <https://freepbr.com/materials/rusted-iron-pbr-metal-material-alt/> 에서 가져왔습니다.
+- HDR 맵은 <https://web.archive.org/web/20200609124833/http://www.hdrlabs.com/sibl/archive.html>의 Alexs_Apt_2k.hdr 파일을 가져왔습니다. 현재 원본 링크가 없어졌으므로 여기에는 Wayback Machine을 이용한 대체 링크를 걸어두었고, hdr 파일은 강의의 github 페이지 에서 가져 왔습니다. -> <https://github.com/rinthel/opengl_course/blob/main/projects/15_pbr/pbr_example/image/Alexs_Apt_2k.hdr>
 - Dependency.cmake 파일은 windows 운영체제를 기준으로 작성되었고, 다른 운영체제에서는 그대로 사용시 실행되지 않을 수도 있습니다.
 - 사용된 라이브러리들은 그 라이브러리의 최신 버전이 아닌 강의의 버전과 동일한 것을 사용했습니다. 최신 버전의 라이브러리에서는 이 코드가 동작하지 않을 수도 있습니다.
 - 현재 8-2 코드에는 오타가 있습니다. 실행은 되지만 빛이 이상하게 동작할 수 있는데, 8-2 commit에 어떤 오타가 있는지 메모가 있으므로 참고해서 고치면 문제 없을 것입니다.
