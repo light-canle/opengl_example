@@ -41,7 +41,8 @@ private:
     ProgramUPtr m_pbrProgram;
     ProgramUPtr m_sphericalMapProgram;
     ProgramUPtr m_skyboxProgram;
-    ProgramUPtr m_diffuseIrradianceProgram;
+    ProgramUPtr m_diffuseIrradianceProgram; // Diffuse Irradiance map
+    ProgramUPtr m_preFilteredProgram; // Pre-Filtered map
 
     // Mesh
     MeshUPtr m_box;
@@ -53,7 +54,9 @@ private:
 
     // CubeMap
     CubeTexturePtr m_hdrCubeMap;
-    CubeTexturePtr m_diffuseIrradianceMap;
+    CubeTexturePtr m_diffuseIrradianceMap; // Diffuse Irradiance map
+    CubeTexturePtr m_preFilteredMap; // Pre-Filtered map
+  
 
     // camera parameter
     glm::vec3 m_cameraPos { glm::vec3(0.0f, 2.5f, 8.0f) }; // p = e 카메라 위치 벡터

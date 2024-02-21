@@ -60,6 +60,7 @@ public:
     int GetHeight() const { return m_height; }
     uint32_t GetFormat() const { return m_format; }
     uint32_t GetType() const { return m_type; }
+    void GenerateMipmap() const;
 private:
     CubeTexture() {}
     bool InitFromImages(const std::vector<Image*> &images);

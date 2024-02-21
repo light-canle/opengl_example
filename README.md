@@ -1478,6 +1478,8 @@ fragNormal = TBN * fragNormal;
 
 - 우리가 앞에서 보았던 reflectance equation에서 적분 식을 diffuse term과 specular term으로 분해했을 때 diffuse term을 diffuse irradiance라고 한다.
 
+![PBR16](/note_image/PBR16.jpg)
+
 - p를 enviornment map의 한가운데 지점이라고 가정하면 적분식은 $\omega_{i}$ 에 대한 식으로 볼 수 있다.
 - 출력 방향 $\omega_{o}$ 에 대해서 반구 내 모든 입력 방향 $\omega_{i}$ 에 대한 빛의 가중치(코사인 값)를 합산함으로써 Diffuse irradiance를 계산할 수 있다.
 
@@ -1685,3 +1687,109 @@ if (useIrradiance == 1) {
 - 이제 코드를 실행하면 아래처럼 된다. 위의 사진이 diffuse irradiance를 켠 모습, 아래 사진이 끈 모습이다. 위의 사진에서 물체에 배경의 빛이 비추어서 약간 더 밝은 것을 확인할 수 있다.
 ![PBR15-1](/note_image/PBR15-1.png)
 ![PBR15-2](/note_image/PBR15-2.png)
+
+#### IBL - Specular
+
+- Specular term의 경우 diffuse term과 다르게 미리 계산해 줄 수 없다. 그래서 정확한 계산 대신 이를 Light part와 BRDF part로 나누어 계산한 뒤 이를 곱해서 적용하는 방식으로 미리 계산할 수 있는데 이를 Epic Games' split sum approximation라고 한다.
+
+![PBR17](/note_image/PBR17.jpg)
+
+##### Prefiltered map
+
+- 우선 Light part는 Pre-filtered environment map을 사용한다. Pre-filtered map에는 물체에 비칠 주변 환경의 형상을 저장하는데, roughness에 따라 반사되는 정도가 달라지므로 (roughness가 커질 수록 빛이 분산되는 정도가 커져 흐리게 보인다.) roughness가 클 수록 mipmap level을 높여 더 흐려보이게 된다.
+- 이 map을 구하는데에는 통계적인 적분 방식인 몬테 카를로 적분 방식을 사용한다. 이 방식에서는 랜덤한 위치에서 샘플을 가져온 뒤 그 샘플에서 구한 값을 전체 합계에 누적시키는 방식을 사용해서 근사한 적분값을 계산해 낸다. 여기서는 샘플의 위치를 구할 때 약간 더 분산되도록 하여(low-discrepancy sequence) 조금 더 빠르게 적분값에 수렴할 수 있는 Quasi-Monte Carlo integration 방법을 사용한다.
+- texture 파일에서는 cubemap에서 mipmap을 만들어 낼 수 있도록 약간의 코드를 추가했다.
+- Prefiltered map을 생성하는 prefiltered_light.frag 쉐이더를 만들었다. 이 쉐이더에서는 1024개의 샘플을 임의의 위치에서 들고온 뒤, 해당 위치에서의 반사 벡터를 구하고 그 반사 벡터와 법선 벡터의 내적이 0이상이면 색상의 합에 누적시키는 방식을 이용해서 색상을 구하고 있다.
+
+```glsl
+// reflection, view 방향을 normal로 통일
+vec3 N = normalize(localPos);
+vec3 R = N;
+vec3 V = R;
+
+// 샘플 1024개로 통계적 계산
+const uint SAMPLE_COUNT = 1024u;
+float totalWeight = 0.0;
+vec3 prefilteredColor = vec3(0.0);
+for(uint i = 0u; i < SAMPLE_COUNT; ++i) {
+    // 랜덤 포인트 생성
+    vec2 Xi = Hammersley(i, SAMPLE_COUNT);
+    // 해당하는 면에서 반사되는 방향 벡터를 도출
+    vec3 H = ImportanceSampleGGX(Xi, N, roughness);
+    vec3 L = normalize(2.0 * dot(V, H) * H - V);
+    float NdotL = max(dot(N, L), 0.0);
+    if(NdotL > 0.0) {
+        prefilteredColor += texture(cubeMap, L).rgb * NdotL;
+        totalWeight += NdotL;
+    }
+}
+prefilteredColor = prefilteredColor / totalWeight;
+
+fragColor = vec4(prefilteredColor, 1.0);
+```
+
+- context 파일에서 맴버를 추가하고, 초기화하는 부분을 넣어 준다. roughness에 따라 5단계의 밉맵을 생성하고, 그 밉맵으로 부터 6면의 텍스쳐를 생성하는 방식으로 했다.
+
+```c++
+const uint32_t maxMipLevels = 5;
+glDepthFunc(GL_LEQUAL);
+m_preFilteredProgram = Program::Create("./shader/skybox_hdr.vert", "./shader/prefiltered_light.frag");
+m_preFilteredMap = CubeTexture::Create(128, 128, GL_RGB16F, GL_FLOAT);
+m_preFilteredMap->GenerateMipmap();
+m_preFilteredProgram->Use();
+m_preFilteredProgram->SetUniform("projection", projection);
+m_preFilteredProgram->SetUniform("cubeMap", 0);
+m_hdrCubeMap->Bind();
+for (uint32_t mip = 0; mip < maxMipLevels; mip++) {
+    auto framebuffer = CubeFramebuffer::Create(m_preFilteredMap, mip);
+    uint32_t mipWidth = 128 >> mip;
+    uint32_t mipHeight = 128 >> mip;
+    glViewport(0, 0, mipWidth, mipHeight);
+
+    float roughness = (float)mip / (float)(maxMipLevels - 1);
+    m_preFilteredProgram->SetUniform("roughness", roughness);
+    for (uint32_t i = 0; i < (int)views.size(); i++) {
+        m_preFilteredProgram->SetUniform("view", views[i]);
+        framebuffer->Bind(i);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        m_box->Draw(m_preFilteredProgram.get());   
+    }
+}
+glDepthFunc(GL_LESS);
+```
+
+- 모든 mipmap의 결과를 확인하기 위해 skybox_hdr.frag에서 roughness를 uniform으로 받고, textureLod 함수를 사용해 밉맵 레벨에 따라 텍스쳐에서 픽셀값을 얻어오도록 수정했다.
+
+```glsl
+uniform float roughness;
+// main 함수
+vec3 envColor = textureLod(cubeMap, localPos, roughness * 4).rgb;
+```
+
+- 실행된 모습
+![PBR18](/note_image/PBR18.png)
+- Roughness 수치가 높아질 수록 더 높은 레벨의 mipmap으로 그려지기 때문에 점점 흐려지는 것을 확인할 수 있다.
+- 그러나 이렇게 만든 Prefiltered map에는 2가지 문제가 있다. 첫 번째 문제는 roughness가 0.2 ~ 0.5쯤 될 때 점박 형태의 무늬가 나타나는 것이다.
+![PBR19-1](/note_image/PBR19-1.png)
+- 두 번째 문제는 roughness가 클 때(0.5 이상) 큐브맵의 경계선이 뚜렷하게 보인다는 것이다.
+![PBR19-2](/note_image/PBR19-2.png)
+
+- 큐브맵의 경계선이 보이는 문제는 Init() 함수 맨 위에 glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS)를 추가하는 것으로 해결할 수 있다.
+- 점박 무늬가 보이는 문제는 roughness 수치에 따라 textureLod 함수를 이용해 서로 다른 mipmap에서 샘플링을 하는 것으로 해결할 수 있다. 새로운 함수 DistributionGGX를 추가하고 main 함수 내에 if문을 아래와 같이 수정한다.
+
+```glsl
+float D = DistributionGGX(N, H, roughness);
+float NdotH = max(dot(N, H), 0.0);
+float HdotV = max(dot(H, V), 0.0);
+float pdf = (D * NdotH / (4.0 * HdotV)) + 0.0001;
+float resolution = 512.0; // resolution of source cubemap (per face)
+float saTexel = 4.0 * PI / (6.0 * resolution * resolution);
+float saSample = 1.0 / (float(SAMPLE_COUNT) * pdf + 0.0001);
+float mipLevel = roughness == 0.0 ? 0.0 : 0.5 * log2(saSample / saTexel);
+
+// prefilteredColor += texture(cubeMap, L).rgb * NdotL;
+prefilteredColor += textureLod(cubeMap, L, mipLevel).rgb * NdotL;
+totalWeight += NdotL;
+```
+
+- 이렇게 한 뒤 실행하면 경계선과 점박 무늬가 사라졌음을 확인할 수 있다.
