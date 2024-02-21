@@ -7,7 +7,9 @@ out vec4 fragColor;
 
 uniform vec3 viewPos;
 uniform samplerCube irradianceMap;
-uniform int useIrradiance;
+uniform samplerCube preFilteredMap;
+uniform sampler2D brdfLookupTable;
+uniform int useIBL;
 
 struct Light {
     vec3 position;
@@ -110,13 +112,25 @@ void main() {
     }
     // ao 맵으로 부터 주변광 색을 가져옴
     vec3 ambient = vec3(0.03) * albedo * ao;
-    // irradiance 사용
-    if (useIrradiance == 1) {
+    // IBL 사용
+    if (useIBL == 1) {
         vec3 kS = FresnelSchlickRoughness(dotNV, F0, roughness);
         vec3 kD = 1.0 - kS;
+        kD *= 1.0 - metallic;
+        // diffuse part - irradiance map
         vec3 irradiance = texture(irradianceMap, fragNormal).rgb;
         vec3 diffuse = irradiance * albedo;
-        ambient = (kD * diffuse) * ao;
+
+        // specular part
+        vec3 R = reflect(-viewDir, fragNormal);
+        const float MAX_REFLECTION_LOD = 4.0;
+        // perfiltered map
+        vec3 preFilteredColor = textureLod(preFilteredMap, R, roughness * MAX_REFLECTION_LOD).rgb;
+        // BRDF map
+        vec2 envBrdf = texture(brdfLookupTable, vec2(dotNV, roughness)).rg;
+        vec3 specular = preFilteredColor * (kS * envBrdf.x + envBrdf.y);
+
+        ambient = (kD * diffuse + specular) * ao;
     }
     vec3 color = ambient + outRadiance;
 

@@ -43,6 +43,7 @@ private:
     ProgramUPtr m_skyboxProgram;
     ProgramUPtr m_diffuseIrradianceProgram; // Diffuse Irradiance map
     ProgramUPtr m_preFilteredProgram; // Pre-Filtered map
+    ProgramUPtr m_brdfLookupProgram; // BRDF lookup table
 
     // Mesh
     MeshUPtr m_box;
@@ -51,12 +52,12 @@ private:
 
     // Texture
     TextureUPtr m_hdrMap; // IBL용 hdr 맵
+    TexturePtr m_brdfLookupMap; // IBL 용 BRDF lookup table
 
     // CubeMap
     CubeTexturePtr m_hdrCubeMap;
     CubeTexturePtr m_diffuseIrradianceMap; // Diffuse Irradiance map
     CubeTexturePtr m_preFilteredMap; // Pre-Filtered map
-  
 
     // camera parameter
     glm::vec3 m_cameraPos { glm::vec3(0.0f, 2.5f, 8.0f) }; // p = e 카메라 위치 벡터
@@ -77,7 +78,7 @@ private:
         glm::vec3 color { glm::vec3(1.0f, 1.0f, 1.0f) };
     };
     std::vector<Light> m_lights;
-    bool m_useDiffuseIrradiance { true }; // diffuse irradinace 사용 여부
+    bool m_useIBL { true }; // IBL 사용 여부
 
     // 머터리얼(재질)
     struct Material {

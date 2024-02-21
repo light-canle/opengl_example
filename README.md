@@ -1793,3 +1793,98 @@ totalWeight += NdotL;
 ```
 
 - 이렇게 한 뒤 실행하면 경계선과 점박 무늬가 사라졌음을 확인할 수 있다.
+
+##### BRDF lookup table
+
+- 이제 두 번째 부분인 BRDF 적분식을 작성할 때이다.
+- BRDF 적분식의 계산 결과를 저장하는 텍스쳐 맵을 생성하는 새로운 쉐이더 brdf_lookup를 만든다.
+- vertex shader에서는 위치와 텍스쳐 좌표를 받아 변환된 좌표를 전달하는 간단한 역할을 하고, fragment shader에서는 Prefiltered map과 비슷하게 임의의 지점을 선택한 뒤 그 지점에서의 BRDF 적분 값을 구해서 합하는 방식으로 구한다.
+
+```glsl
+vec3 V;
+V.x = sqrt(1.0 - NdotV*NdotV);
+V.y = 0.0;
+V.z = NdotV;
+
+float A = 0.0;
+float B = 0.0;
+
+vec3 N = vec3(0.0, 0.0, 1.0);
+
+const uint SAMPLE_COUNT = 1024u;
+for (uint i = 0u; i < SAMPLE_COUNT; ++i) {
+    vec2 Xi = Hammersley(i, SAMPLE_COUNT);
+    vec3 H = ImportanceSampleGGX(Xi, N, roughness);
+    vec3 L = normalize(2.0 * dot(V, H) * H - V);
+
+    float NdotL = max(L.z, 0.0);
+    float NdotH = max(H.z, 0.0);
+    float VdotH = max(dot(V, H), 0.0);
+
+    if(NdotL > 0.0) {
+        float G = GeometrySmith(N, V, L, roughness);
+        float G_Vis = (G * VdotH) / (NdotH * NdotV);
+        float Fc = pow(1.0 - VdotH, 5.0);
+        A += (1.0 - Fc) * G_Vis;
+        B += Fc * G_Vis;
+    }
+}
+A /= float(SAMPLE_COUNT);
+B /= float(SAMPLE_COUNT);
+return vec2(A, B);
+```
+
+- Init 함수에서 BRDF lookup table을 프로그램을 사용해서 만들어 준다.
+
+```c++
+m_brdfLookupProgram = Program::Create("./shader/brdf_lookup.vert", "./shader/brdf_lookup.frag");
+m_brdfLookupMap = Texture::Create(512, 512, GL_RG16F, GL_FLOAT);
+auto lookupFramebuffer = Framebuffer::Create({ m_brdfLookupMap });
+lookupFramebuffer->Bind();
+glViewport(0, 0, 512, 512);
+glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+m_brdfLookupProgram->Use();
+m_brdfLookupProgram->SetUniform("transform",
+glm::scale(glm::mat4(1.0f), glm::vec3(2.0f, -2.0f, 2.0f)));
+m_plane->Draw(m_brdfLookupProgram.get());
+```
+
+- 이렇게 만들어진 맵을 ImGUI로 만들어내면 아래와 같은 모습이 나온다.
+![PBR20](/note_image/PBR20.png)
+
+- 마지막으로 이렇게 만들어진 BRDF를 적용해주면 끝난다.
+- pbr.frag에서 useIBL이 1이면, 이전에 만들었던 irradiance map과 perfiltered map, BRDF map를 적용해서 최종적인 색을 구해주는 부분을 추가한다.
+
+```glsl
+// ao 맵으로 부터 주변광 색을 가져옴
+vec3 ambient = vec3(0.03) * albedo * ao;
+// IBL 사용
+if (useIBL == 1) {
+    vec3 kS = FresnelSchlickRoughness(dotNV, F0, roughness);
+    vec3 kD = 1.0 - kS;
+    kD *= 1.0 - metallic;
+    // diffuse part - irradiance map
+    vec3 irradiance = texture(irradianceMap, fragNormal).rgb;
+    vec3 diffuse = irradiance * albedo;
+
+    // specular part
+    vec3 R = reflect(-viewDir, fragNormal);
+    const float MAX_REFLECTION_LOD = 4.0;
+    // perfiltered map
+    vec3 preFilteredColor = textureLod(preFilteredMap, R, roughness * MAX_REFLECTION_LOD).rgb;
+    // BRDF map
+    vec2 envBrdf = texture(brdfLookupTable, vec2(dotNV, roughness)).rg;
+    vec3 specular = preFilteredColor * (kS * envBrdf.x + envBrdf.y);
+
+    ambient = (kD * diffuse + specular) * ao;
+}
+vec3 color = ambient + outRadiance;
+```
+
+- 이후 skybox_hdr.frag shader를 다시 되돌리고 uniform 변수의 값으로 만들어진 map 들을 넘겨주는 코드를 써주면 된다.
+- 실행된 결과
+![PBR21-1](/note_image/PBR21-1.png)
+![PBR21-2](/note_image/PBR21-2.png)
+
+- 그려진 구들 중에서 roughness = 0, metallic = 1인 구를 가까이에서 보면 IBL에 의해 그려진 주변 배경의 모습이 구에 비추어 지는 것을 확인할 수 있다.
+![PBR22](/note_image/PBR22.png)
