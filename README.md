@@ -15,7 +15,7 @@
 
 ### OpenGL로 텍스쳐 없는 2D 도형을 그리는 방법 (이 부분은 강의 노트가 아닌 learnopengl.com을 참고함)
 
-1. glfw 창 생성
+#### 1. glfw 창 생성
 
 - glfw 초기화
 
@@ -52,7 +52,7 @@ if (!window) {
 glfwMakeContextCurrent(window);
 ```
 
-2. glad 불러오기 : glfwMakeContextCurrent 이후에 수행해야 함
+#### 2. glad 불러오기 : glfwMakeContextCurrent 이후에 수행해야 함
 
 ```c++
 // glad를 활용한 OpenGL 함수 로딩
@@ -63,7 +63,7 @@ if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
 }
 ```
 
-3. VAO, VBO, EBO 제작
+#### 3. VAO, VBO, EBO 제작
 
 - (1) VAO 생성 / 바인딩
 - glGenVertexArrays(개수, &ID) : VAO 생성
@@ -127,7 +127,7 @@ glBindBuffer(GL_ARRAY_BUFFER, 0);
 glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 ```
 
-4. 쉐이더 컴파일 & 프로그램 생성
+#### 4. 쉐이더 컴파일 & 프로그램 생성
 
 - (1) 쉐이더 생성
 - glCreateShader() : 타입에 맞는 쉐이더 생성
@@ -145,7 +145,7 @@ glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 - glGetProgramiv(ID, GL_LINK_STATUS, &success) : 링크 성공 여부 확인
   - success가 1이 아닌 경우 실패 : glGetProgramInfoLog(ID, 오류 문자열 길이, NULL, 문자열을 담을 변수)로 원인 파악 가능
 
-5. glfw 콜백 함수 지정 / 창 초기화
+#### 5. glfw 콜백 함수 지정 / 창 초기화
 
 - glClearColor(float r, float g, float b, float a) : 화면 배경색 지정
 - glfwSetFramebufferSizeCallback(window, 콜백 함수 이름) : 창의 크기가 변할 때 호출할 함수 지정
@@ -172,7 +172,7 @@ void OnKeyEvent(GLFWwindow* window,
 }
 ```
 
-6. 메인 루프
+#### 6. 메인 루프
 
 - while 루프의 조건은 !glfwWindowShouldClose(window)로 지정한다.
 - glClear(GL_COLOR_BUFFER_BIT) : 화면 초기화
@@ -184,7 +184,7 @@ void OnKeyEvent(GLFWwindow* window,
 ex) glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
 - glfwSwapBuffers(window) : 프론트 버퍼와 백 버퍼를 교체 : 렌더링 코드 맨 마지막에 있어야 함
 
-7. 종료, 메모리 정리
+#### 7. 종료, 메모리 정리
 
 ```c++
 // 쉐이더 프로그램과 버퍼 삭제
@@ -194,19 +194,137 @@ glDeleteBuffers(1, &EBO ID);
 glfwTerminate();
 ```
 
-### 3D 관련 간단 노트
+### GLSL 기초
 
-- Note : 확대 -> 회전 -> 평행이동 순으로 점에 선형 변환 적용
-- translate로 평행이동, rotate로 회전, scale로 크기 변경
+- GLSL은 OpenGL에서 shader를 작성하기 위해 제공하는 C 기반의 언어이다.
+- 대략적인 형태
 
-- Uniform 변수 값 지정 - 프로그램 생성 이후에 배치
-  
+```glsl
+#version 330 core
+
+in type in_var_name;
+
+out type out_var_name;
+
+uniform type uniform_name;
+
+void main(){
+    out_var_name = ...;
+}
+```
+
+- 쉐이더는 버전을 정해주는 것으로 시작한다. 이 예제에서는 3.3 core profile을 사용하므로 #version 330 core를 써주었다.
+- in으로 시작하는 변수는 vertex shader인 경우 VBO의 데이터에서 부터, fragment shader의 경우 vertex shader로 부터 받는 데이터를 뜻한다.
+- out으로 시작하는 변수는 vertex shader인 경우 fragment shader에게 전달해주는 변수, fragment shader의 경우 픽셀의 최종 색상을 뜻한다. fragment shader에서는 보통 out vec3 fragColor;의 형태로 짓는다.
+- uniform으로 시작하는 변수는 우리가 작성하는 c++프로그램에서 직접 값을 전달받는 변수를 뜻한다.
+- C언어 처럼 main() 함수 안에서 시작된다. main() 함수에서 연산을 수행한 뒤, 반드시 out으로 지정한 변수의 값을 모두 지정해 준 뒤 함수가 끝이 난다.
+
+#### GLSL type
+
+- 기본 타입 : int, float, double, uint, bool
+- 벡터 타입 : vecN : float, bvecN : bool, ivecN : int, uvecN : uint, dvecN : double (N에는 2, 3, 4가 들어감)
+- 행렬 타입 : matN : float, bmatN : bool, imatN : int, umatN : uint, dmatN : double (N에는 2, 3, 4가 들어감)
+- mat4는 4x4 크기이고, 각 원소가 float인 행렬을 의미한다.
+
+#### Vector 값에 접근 / 초기화
+
+- 벡터이름.x or .y or .z or .w를 통해 벡터의 1, 2, 3, 4번째 원소에 접근할 수 있다.
+- .rgba(색상), .stpq(텍스쳐)를 이용해도 1~4번째 원소에 접근할 수 있다.
+- swizzling : .뒤에 변수를 여러개 써서 단일 값 뿐만 아니라 vec2, vec3, vec4의 형태로 가져올 수 있다.
+
+```glsl
+vec2 some;
+vec3 foo = some.xyy;
+vec4 bar = foo.wzyx;
+vec3 color = bar.rgb;
+```
+
+- 벡터 값의 초기화는 vec2(), vec3(), vec4() 형태의 생성자를 사용할 수 있다. 이때 이 안에서도 swizzling을 쓸 수 있다.
+
+```glsl
+vec2 some = vec2(0.2f, 0.6f);
+vec3 foo = vec3(some.xy, 0.7f);
+vec4 bar = vec4(foo.xy, some.xy);
+vec3 color = vec3(bar.xy, 1.0f);
+```
+
+#### Vertex shader의 기본 형태
+
+```glsl
+#version 330 core
+layout (location = 0) in vec3 aPos; // 0번째 attribute가 정점의 위치
+
+out vec4 vertexColor; // fragment shader로 넘어갈 컬러값
+
+void main() {
+    gl_Position = vec4(aPos, 1.0); // 정점의 화면상 위치 계산
+    vertexColor = vec4(0.5, 0.0, 0.0, 1.0); // fragment shader에 값 전달
+}
+```
+
+- vertex shader에서는 각 정점별로 설정된 정점 속성 (vertex attribute)들을 입력 받는다. (glEnableVertexAttribArray 함수로 지정한 것들이다.) 이때 layout (location = 속성 번호)를 통해 몇 번째 속성을 입력받을 지를 결정할 수 있다. 아래의 경우에는 attribute가 위치, 색깔 2개일 때 지정하는 방식이다.
+
+```glsl
+layout (location = 0) in vec3 aPos; // 0번째 attribute가 정점의 위치
+layout (location = 1) in vec3 aColor; // 1번째 attribute가 정점의 색깔
+```
+
+- main 함수에서 gl_Position 변수에 값을 지정해주는 것이 vertex shader의 가장 중요한 역할이다. 이 변수는 GLSL에 사전 정의된 함수로 화면 상에서 해당 정점이 위치할 곳을 뜻한다. 그리고 main 함수 안에서는 fragment shader에 넘겨 줄 out 변수의 값을 지정해주는 것도 필요하다.
+
+#### Fragment shader의 기본 형태
+
+```glsl
+#version 330 core
+
+in vec4 vertexColor; // vertex shader로부터 입력된 변수 (같은 변수명, 같은 타입)
+out vec4 FragColor; // 최종 출력 색상
+
+void main() {
+    FragColor = vertexColor;
+}
+```
+
+- fragment shader에서는 Rasterization 과정을 거쳐 픽셀별로 할당된 vertex shader의 출력 변수를 받아서 그 픽셀의 최종적인 색상을 결정해 준다.
+- vertex shader에서의 out 변수와 타입과 이름이 같은 in 변수를 받고, out 변수로는 픽셀의 색상을 vec4의 형태로 반환한다.
+- 이후 학습할 빛, 그림자, 텍스쳐 연산은 모두 여기에서 이루어 진다.
+
+#### Uniform 변수 선언과 값 할당
+
+- uniform 변수는 앞에서 서술했듯이 쉐이더 외부에서 값을 받아올 수 있는 global 변수이고, 쉐이더 안에서는 uniform으로 시작하는 변수 형태로 정의한다.
+- 이제 쉐이더 바깥에서 이 uniform 변수에 값을 전달하려면 우선, glUseProgram()으로 프로그램을 사용해준다.
+- 그 다음, glGetUniformLocation(program ID, uniform 변수 이름)을 사용해서 해당 uniform의 주소를 불러온다. uniform 변수 이름은 반드시 shader에서 선언했던 이름과 똑같아야 한다. 가져오는데 성공했으면 임의의 주소값(0 이상)이, 실패했으면 -1이 들어간다.
+- uniform의 주소를 불러오는 데 성공했다면 해당 uniform 변수의 타입에 맞는 glUniform..(주소, ...) 함수를 호출해서 원하는 값을 전달해 줄 수 있다. float인 경우 glUniform1f ~ glUniform4f 함수를, int인 경우 glUniform1i ~ glUniform4i 함수를, uint인 경우 glUniform1ui ~ glUniform4ui 함수를 쓸 수 있다.
+
 ```c++
 // 프로그램에서 color uniform 변수의 위치를 가져옴
 auto loc = glGetUniformLocation(m_program->Get(), "color");
 // 해당 위치에 값을 넣음(color는 vec4이다.)
 glUniform4f(loc, 1.0f, 1.0f, 0.0f, 1.0f);
 ```
+
+- 이렇게 uniform 변수를 사용하면 c++ 프로그램에서 계산한 값을 쉐이더에 직접 전달함으로써 렌더링 루프에서 매 프레임마다 프로그램 사용 후 다른 값을 uniform 변수에 전달함으로써 프레임마다 달라지는 애니메이션을 만들어 낼 수도 있다.
+
+```c++
+void Context::Render() {
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    float time = 0.0f;
+    float t = sinf(time) * 0.5f + 0.5f;
+    auto loc = glGetUniformLocation(m_program->Get(), "color");
+    m_program->Use();
+    glUniform4f(loc, t, 1.0f - t, 1.0f, 1.0f);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+    time += 0.016f;
+}
+```
+
+- m_program->Get()은 쉐이더 프로그램의 ID를 가져오는 것이고, m_program->Use()는 glUseProgram(ID)와 같다.
+
+### 3D 관련 간단 노트
+
+- Note : 확대 -> 회전 -> 평행이동 순으로 점에 선형 변환 적용
+- translate로 평행이동, rotate로 회전, scale로 크기 변경
 
 - lookAt 함수는 아래와 같이 카메라 행렬의 역행렬을 계산해준다.
 
@@ -937,10 +1055,11 @@ glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL
 
 #### HDR 기법
 
-1. Tone mapping
-   - floating point framebuffer에 그려진 texture를 0.0 ~ 1.0 범위에 맞춰서 다시 화면에 그리는 것이다.
-   - Reinhard tone mapping 방식을 사용해서 모든 색상 값을 다시 0 ~ 1로 조절한다.
-   - vec3 mapped = hdrColor / (hdrColor + vec3(1.0))
+##### 1. Tone mapping
+
+- floating point framebuffer에 그려진 texture를 0.0 ~ 1.0 범위에 맞춰서 다시 화면에 그리는 것이다.
+- Reinhard tone mapping 방식을 사용해서 모든 색상 값을 다시 0 ~ 1로 조절한다.
+- vec3 mapped = hdrColor / (hdrColor + vec3(1.0))
 
 ```glsl
 void main() {
@@ -953,10 +1072,11 @@ void main() {
 }
 ```
 
-2. Exposure tone mapping
-   - 위처럼 공식을 이용해서 값을 0.0 ~ 1.0 사이로 조절하는 것은 비슷하지만, 노출값을 파라미터로 사용한다는 것과 다른 공식을 사용한다는 차이가 있다.
-   - vec3 mapped = vec3(1.0) - exp(-hdrColor * exposure)
-   - 노출값이 클수록 전체적으로 더 밝게 보이고, 어두운 곳의 디테일을 볼 수 있으며, 노출값이 작을 수록 전체적으로 어둡게 보이며 밝은 곳의 디테일을 볼 수 있다.
+##### 2. Exposure tone mapping
+
+- 위처럼 공식을 이용해서 값을 0.0 ~ 1.0 사이로 조절하는 것은 비슷하지만, 노출값을 파라미터로 사용한다는 것과 다른 공식을 사용한다는 차이가 있다.
+- vec3 mapped = vec3(1.0) - exp(-hdrColor * exposure)
+- 노출값이 클수록 전체적으로 더 밝게 보이고, 어두운 곳의 디테일을 볼 수 있으며, 노출값이 작을 수록 전체적으로 어둡게 보이며 밝은 곳의 디테일을 볼 수 있다.
 
 ```glsl
 uniform float exposure;
@@ -1549,7 +1669,7 @@ vec3 fresnelSchlick(float cosTheta, vec3 surfaceColor, float metallic) {
 
 - Albedo(물체 기본 색상), Normal(법선), Metallic(금속성), Roughness(거칠기), Ambient Occlusion(주변광 차페)을 파라미터로 갖는다.
 
-#### PBR 구현 (https://www.youtube.com/watch?v=HuGEcaMpqEQ&list=PLvNHCGtd4kh_cYLKMP_E-jwF3YKpDP4hf&index=42))
+#### PBR 구현 (<https://www.youtube.com/watch?v=HuGEcaMpqEQ&list=PLvNHCGtd4kh_cYLKMP_E-jwF3YKpDP4hf&index=42>)
 
 - 코드 간소화를 위해 context.h와 context.cpp에서 핵심적인 내용을 제외한 거의 모든 렌더링 코드와 맴버를 지웠다.
 - PBR 재질의 파라미터 값의 변화를 잘 확인하기 위해 구 형태의 매시를 그리기 위해 mesh.h, mesh.cpp에 구를 그리는 코드를 추가했다. context.cpp의 DrawScene에서는 구를 7x7의 격자 형태로 배치했다. 그리고 각각의 구마다 roughness와 metallic 수치를 다르게 했다.
@@ -1749,7 +1869,7 @@ m_hdrMap->Bind();
 m_box->Draw(m_sphericalMapProgram.get());
 ```
 
-- 기존의 큐브맵은 6장의 이미지로부터 만들어내지만, hdr 맵은 1장의 사진에서 cubemap을 가져오는 것이므로, 다른 방식으로 큐브맵을 불러올 필요가 있다. 그래서 타입만 지정된 빈 텍스쳐를 만든 뒤, 그 텍스쳐에 이미지 데이터를 붙이는 방식을 사용해서 변환된 hdr 맵을 cube map으로 바꾸어준다. (texture 파일에서 수정) 그리고 hdr은 채널이 4바이트 이므로, 이미지 형식에 따라 채널 당 바이트 맴버를 수정할 수 있도록 한다. 
+- 기존의 큐브맵은 6장의 이미지로부터 만들어내지만, hdr 맵은 1장의 사진에서 cubemap을 가져오는 것이므로, 다른 방식으로 큐브맵을 불러올 필요가 있다. 그래서 타입만 지정된 빈 텍스쳐를 만든 뒤, 그 텍스쳐에 이미지 데이터를 붙이는 방식을 사용해서 변환된 hdr 맵을 cube map으로 바꾸어준다. (texture 파일에서 수정) 그리고 hdr은 채널이 4바이트 이므로, 이미지 형식에 따라 채널 당 바이트 맴버를 수정할 수 있도록 한다.
 
 ```c++
 CubeTextureUPtr CubeTexture::Create(int width, int height,
