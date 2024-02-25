@@ -11,7 +11,188 @@
 - 사용된 라이브러리들은 그 라이브러리의 최신 버전이 아닌 강의의 버전과 동일한 것을 사용했습니다. 최신 버전의 라이브러리에서는 이 코드가 동작하지 않을 수도 있습니다.
 - 현재 8-2 코드에는 오타가 있습니다. 실행은 되지만 빛이 이상하게 동작할 수 있는데, 8-2 commit에 어떤 오타가 있는지 메모가 있으므로 참고해서 고치면 문제 없을 것입니다.
 
-## 강의 내용 정리 노트 - <https://rinthel.github.io/opengl_course> 참고
+## 내용 정리 노트 - <https://rinthel.github.io/opengl_course> 참고
+
+### OpenGL로 텍스쳐 없는 2D 도형을 그리는 방법 (이 부분은 강의 노트가 아닌 learnopengl.com을 참고함)
+
+1. glfw 창 생성
+
+- glfw 초기화
+
+```c++
+if (!glfwInit()) {
+    const char* description = nullptr;
+    glfwGetError(&description); // 에러가 발생한 이유를 가져옴
+    // 에러 사유 출력
+    std::cout << "failed to initialize glfw : " << description << std::endl;
+    return -1;
+}
+```
+
+- opengl 버전 설정
+
+```c++
+// OpenGL 버전 설정
+glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+```
+
+- glfw 윈도우, OpenGL context 생성
+
+```c++
+// glfw 윈도우 생성, 실패하면 에러 출력후 종료
+auto window = glfwCreateWindow(창 가로 크기, 창 세로 크기, 창 이름, nullptr, nullptr);
+if (!window) {
+    std::cout << "failed to create glfw window" << std::endl;
+    glfwTerminate();
+    return -1;
+}
+// OpenGL context를 사용할 것을 명시
+glfwMakeContextCurrent(window);
+```
+
+2. glad 불러오기 : glfwMakeContextCurrent 이후에 수행해야 함
+
+```c++
+// glad를 활용한 OpenGL 함수 로딩
+if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+    std::cout << "failed to initialize glad" << std::endl;
+    glfwTerminate();
+    return -1;
+}
+```
+
+3. VAO, VBO, EBO 제작
+
+- (1) VAO 생성 / 바인딩
+- glGenVertexArrays(개수, &ID) : VAO 생성
+- glBindVertexArray(ID) : VAO 바인딩
+
+- (2) VBO, EBO 생성, vertex data와 index data를 복사 : 반드시 VAO 바인딩 후 할 것
+- glGenBuffers(개수, &ID) : 버퍼 생성(VBO, EBO)동일
+- glBindBuffer(타입, ID) : 버퍼 바인딩
+  - VBO는 GL_ARRAY_BUFFER, EBO는 GL_ELEMENT_ARRAY_BUFFER를 사용한다.
+- glBufferData(타입, 크기, 데이터 배열, 데이터 관리 방식) : 정점이나 인덱스 데이터를 해당 버퍼에 복사
+- ex) glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+  - 4번째 인자는 그래픽 카드가 주어진 데이터를 관리하는 방식에 대한 것으로 GL_(접근의 정도)_(접근 특성)의 형태로 이루어져 있다.
+
+| 접근의 정도 | 설명 |
+|--|--|
+| STATIC | 버퍼의 데이터는 한 번 수정되어 여러 번 사용된다. |
+| DYNAMIC | 버퍼의 데이터는 반복적으로 수정되고 여러 번 사용된다. |
+| STREAM | 버퍼의 데이터는 한 번 수정되고 최대 몇 번만 사용된다. |
+
+| 접근 특성 | 설명 |
+|--|--|
+| DRAW | 버퍼의 데이터는 애플리케이션에 의해 수정되며 OpenGL에서 무언가를 그리거나 이미지 관련 처리를 할 때에 사용된다. |
+| READ | 버퍼의 데이터는 OpenGL에서 데이터를 읽어 수정되고 애플리케이션에서 데이터를 요청할 때 이 버퍼의 데이터는 반환된다. |
+| COPY | 버퍼의 데이터는 OpenGL에서 데이터를 읽어 수정되고 OpenGL에서 무언가를 그리거나 이미지 관련 처리를 할 때에 사용된다. |
+
+- (3) 정점 속성 지정 / 연결
+- glEnableVertexAttribArray(정점 속성 번호) : 해당 번호의 정점 속성을 사용할 수 있도록 설정
+- glVertexAttribPointer(정점 속성 번호, 속성을 이루는 변수의 개수, 변수의 종류, 정규화 여부, 바이트 크기, 시작 위치) : 정점 속성을 지정해 줌
+
+- 1번째 인자에는 속성의 인덱스를 써준다. 예를 들어 한 정점에 위치, 색깔 정보가 있다면 위치는 0, 색깔은 1이 된다.(나열한 순서대로)
+- 2번째 인자에는 속성의 크기(바이트가 아님! 그 정보를 이루는 수의 개수)를 써준다. 2D 좌표나 텍스쳐 정점 좌표의 경우 2, 3D 좌표나 색깔은 3을 써주면 된다.
+- 3번째 인자에는 저장하는 수의 타입을 써준다. `GL_BYTE`, `GL_UNSIGNED_BYTE`, `GL_SHORT`, `GL_UNSIGNED_SHORT`, `GL_INT`,  `GL_UNSIGNED_INT`, `GL_HALF_FLOAT`, `GL_FLOAT`, `GL_DOUBLE` 등을 써서 저장된 수의 타입을 지정해 줄 수 있다.
+- 4번째 인자에는 GL_TRUE, GL_FALSE 중 하나를 넣는다. GL_TRUE를 하게 되면 값들을 -1~1사이로 정규화를 시킨다. (이 경우에는 이미 -1~1사이에 있으므로 GL_FALSE를 사용한다.)
+- 5번째 인자에는 한 정점을 나타내는 데이터의 총 크기를 써준다. 한 정점에 3D좌표와 색깔을 정보로 담았다면 이 인자에는 6 * sizeof(float)이 들어가면 된다.
+- 6번째 인자에는 그 한 정점의 데이터 안에서 해당 정보가 몇 바이트부터 위치하는 지 시작 위치를 써준다.(바이트 단위)
+
+```c++
+float vertices[] =
+{//       정점 위치         /    정점의 색깔   / 텍스쳐 정점 좌표
+    -0.5f, -0.5f, 0.0f,     1.0f, 0.0f, 0.0f,   0.0f, 0.0f, // 왼쪽 아래 모서리
+    -0.5f,  0.5f, 0.0f,     0.0f, 1.0f, 0.0f,   0.0f, 1.0f, // 왼쪽 위 모서리
+     0.5f,  0.5f, 0.0f,     0.0f, 0.0f, 1.0f,   1.0f, 1.0f, // 오른쪽 위 모서리
+     0.5f, -0.5f, 0.0f,     1.0f, 1.0f, 1.0f,   1.0f, 0.0f  // 오른쪽 아래 모서리
+};
+
+// 정점 위치
+glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+glEnableVertexAttribArray(0);
+// 정점 색깔
+glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+glEnableVertexAttribArray(1);
+// 텍스쳐 정점 좌표
+glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
+glEnableVertexAttribArray(2);
+```
+
+- (4) 버퍼 바인딩 해제
+
+```c++
+glBindBuffer(GL_ARRAY_BUFFER, 0);
+glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+```
+
+4. 쉐이더 컴파일 & 프로그램 생성
+
+- (1) 쉐이더 생성
+- glCreateShader() : 타입에 맞는 쉐이더 생성
+  - glCreateShader(GL_FRAGMENT_SHADER) : fragment shader
+  - glCreateShader(GL_VERTEX_SHADER) : vertex shader
+- glShaderSource(ID, count, &shaderSource, NULL) : 쉐이더 소스가 들어있는 문자열 전달
+- glCompileShader(ID) : 쉐이더 컴파일
+- glGetShaderiv(ID, GL_COMPILE_STATUS, &success) : 컴파일 성공 여부 확인
+  - success가 1이 아닌 경우 실패 : glGetShaderInfoLog(ID, 오류 문자열 길이, NULL, 문자열을 담을 변수)로 원인 파악 가능
+
+- (2) 프로그램 생성
+- glCreateProgram() : 프로그램 생성
+- glAttachShader(program ID, shader ID) : 컴파일 된 쉐이더를 프로그램에 삽입
+- glLinkProgram(ID) : 프로그램 링크
+- glGetProgramiv(ID, GL_LINK_STATUS, &success) : 링크 성공 여부 확인
+  - success가 1이 아닌 경우 실패 : glGetProgramInfoLog(ID, 오류 문자열 길이, NULL, 문자열을 담을 변수)로 원인 파악 가능
+
+5. glfw 콜백 함수 지정 / 창 초기화
+
+- glClearColor(float r, float g, float b, float a) : 화면 배경색 지정
+- glfwSetFramebufferSizeCallback(window, 콜백 함수 이름) : 창의 크기가 변할 때 호출할 함수 지정
+콜백 함수는 아래처럼, glfw window, 창의 크기를 인자로 받는다
+
+```c++
+void OnFramebufferSizeChange(GLFWwindow* window, int width, int height) {
+    // 그림을 그릴 화면의 위치, 크기를 지정
+    glViewport(0, 0, width, height);
+}
+```
+
+- glfwSetKeyCallback(window, 콜백 함수 이름) : 어떤 키가 눌렸을 때 호출할 함수 지정
+콜백 함수는 아래처럼 glfw window, key : 키 종류, scancode, action : 누름, 계속 누르고 있음, 뗌 상태, mods : ctrl, alt, shift를 동시에 추가로 눌렀는가? 를 인자로 받는다.
+
+```c++
+// 키 이벤트 처리
+void OnKeyEvent(GLFWwindow* window,
+    int key, int scancode, int action, int mods) {
+    // ESC키를 누르면 창을 종료한다.
+    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
+        glfwSetWindowShouldClose(window, true);
+    }
+}
+```
+
+6. 메인 루프
+
+- while 루프의 조건은 !glfwWindowShouldClose(window)로 지정한다.
+- glClear(GL_COLOR_BUFFER_BIT) : 화면 초기화
+- glfwPollEvents() : 이벤트 처리
+
+- 그림 그리기
+- glUseProgram(program ID) : 지정된 쉐이더 프로그램 사용 준비
+- glDrawElements(primitive type, IBO 변수 개수, 변수 타입, 오프셋) : 버퍼 데이터 대로 화면에 그림을 그린다. : glUseProgram 후에 사용
+ex) glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+- glfwSwapBuffers(window) : 프론트 버퍼와 백 버퍼를 교체 : 렌더링 코드 맨 마지막에 있어야 함
+
+7. 종료, 메모리 정리
+
+```c++
+// 쉐이더 프로그램과 버퍼 삭제
+glDeleteProgram(program ID);
+glDeleteBuffers(1, &VBO ID);
+glDeleteBuffers(1, &EBO ID);
+glfwTerminate();
+```
 
 ### 3D 관련 간단 노트
 
