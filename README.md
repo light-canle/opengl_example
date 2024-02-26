@@ -96,7 +96,7 @@ if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
 - 1번째 인자에는 속성의 인덱스를 써준다. 예를 들어 한 정점에 위치, 색깔 정보가 있다면 위치는 0, 색깔은 1이 된다.(나열한 순서대로)
 - 2번째 인자에는 속성의 크기(바이트가 아님! 그 정보를 이루는 수의 개수)를 써준다. 2D 좌표나 텍스쳐 정점 좌표의 경우 2, 3D 좌표나 색깔은 3을 써주면 된다.
 - 3번째 인자에는 저장하는 수의 타입을 써준다. `GL_BYTE`, `GL_UNSIGNED_BYTE`, `GL_SHORT`, `GL_UNSIGNED_SHORT`, `GL_INT`,  `GL_UNSIGNED_INT`, `GL_HALF_FLOAT`, `GL_FLOAT`, `GL_DOUBLE` 등을 써서 저장된 수의 타입을 지정해 줄 수 있다.
-- 4번째 인자에는 GL_TRUE, GL_FALSE 중 하나를 넣는다. GL_TRUE를 하게 되면 값들을 -1~1사이로 정규화를 시킨다. (이 경우에는 이미 -1~1사이에 있으므로 GL_FALSE를 사용한다.)
+- 4번째 인자에는 GL_TRUE, GL_FALSE 중 하나를 넣는다. GL_TRUE를 하게 되면 값들을 -1 ~ 1사이로 정규화를 시킨다. (이 경우에는 이미 -1 ~ 1사이에 있으므로 GL_FALSE를 사용한다.)
 - 5번째 인자에는 한 정점을 나타내는 데이터의 총 크기를 써준다. 한 정점에 3D좌표와 색깔을 정보로 담았다면 이 인자에는 6 * sizeof(float)이 들어가면 된다.
 - 6번째 인자에는 그 한 정점의 데이터 안에서 해당 정보가 몇 바이트부터 위치하는 지 시작 위치를 써준다.(바이트 단위)
 
@@ -138,12 +138,56 @@ glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 - glGetShaderiv(ID, GL_COMPILE_STATUS, &success) : 컴파일 성공 여부 확인
   - success가 1이 아닌 경우 실패 : glGetShaderInfoLog(ID, 오류 문자열 길이, NULL, 문자열을 담을 변수)로 원인 파악 가능
 
+```c++
+// Shader 클래스의 LoadFile 함수의 일부이다.
+// create and compile shader
+// 쉐이더를 만들고 ID 저장
+m_shader = glCreateShader(shaderType);
+// 소스 파일 가져옴 - (ID, 개수, 코드(const char*), 길이)
+glShaderSource(m_shader, 1, (const GLchar* const*)&codePtr, &codeLength);
+glCompileShader(m_shader);
+
+// check compile error
+int success = 0;
+// 쉐이더의 정보(여기서는 컴파일 성공 여부)를 얻어옴
+glGetShaderiv(m_shader, GL_COMPILE_STATUS, &success);
+if (!success) {
+    // 컴파일에 실패한 경우 에러 메시지 출력
+    char infoLog[1024];
+    glGetShaderInfoLog(m_shader, 1024, nullptr, infoLog);
+    SPDLOG_ERROR("failed to compile shader: \"{}\"", filename);
+    SPDLOG_ERROR("reason: {}", infoLog);
+}
+```
+
 - (2) 프로그램 생성
 - glCreateProgram() : 프로그램 생성
 - glAttachShader(program ID, shader ID) : 컴파일 된 쉐이더를 프로그램에 삽입
 - glLinkProgram(ID) : 프로그램 링크
 - glGetProgramiv(ID, GL_LINK_STATUS, &success) : 링크 성공 여부 확인
   - success가 1이 아닌 경우 실패 : glGetProgramInfoLog(ID, 오류 문자열 길이, NULL, 문자열을 담을 변수)로 원인 파악 가능
+
+```c++
+// Program 클래스의 Link 함수의 일부이다.
+// 프로그램 생성
+m_program = glCreateProgram();
+// 쉐이더들을 프로그램에 붙임
+for (auto& shader: shaders)
+    glAttachShader(m_program, shader->Get());
+// 프로그램 링크
+glLinkProgram(m_program);
+
+// 프로그램 링크가 성공적으로 이루어졌는지 판단
+int success = 0;
+glGetProgramiv(m_program, GL_LINK_STATUS, &success);
+// 실패한 경우 오류 출력
+if (!success) {
+    char infoLog[1024];
+    glGetProgramInfoLog(m_program, 1024, nullptr, infoLog);
+    SPDLOG_ERROR("failed to link program: {}", infoLog);
+    return false;
+}
+```
 
 #### 5. glfw 콜백 함수 지정 / 창 초기화
 
@@ -180,9 +224,27 @@ void OnKeyEvent(GLFWwindow* window,
 
 - 그림 그리기
 - glUseProgram(program ID) : 지정된 쉐이더 프로그램 사용 준비
-- glDrawElements(primitive type, IBO 변수 개수, 변수 타입, 오프셋) : 버퍼 데이터 대로 화면에 그림을 그린다. : glUseProgram 후에 사용
+- glDrawElements(primitive type, EBO 변수 개수, 변수 타입, 오프셋) : 버퍼 데이터 대로 화면에 그림을 그린다. : glUseProgram 후에 사용
 ex) glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
 - glfwSwapBuffers(window) : 프론트 버퍼와 백 버퍼를 교체 : 렌더링 코드 맨 마지막에 있어야 함
+
+```c++
+/* 창을 닫을 때까지 반복 - 메인 루프 
+여기서는 이해를 위해 context 클래스가 없는 버전을 가져왔다.
+원래 코드에서는 context->Render();에 렌더링 부분이 모두 들어있다.
+*/
+while (!glfwWindowShouldClose(window))
+{
+    /* 여기에 렌더링 부분을 넣음 */
+    glClear(GL_COLOR_BUFFER_BIT);
+    /* 삼각형을 그림(정점 2 * 3개) */
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+    /* 백 버퍼와 프론트 버퍼 교체 */
+    glfwSwapBuffers(window);
+    /* 이벤트 처리 */
+    glfwPollEvents();
+}
+```
 
 #### 7. 종료, 메모리 정리
 
@@ -2440,3 +2502,6 @@ vec3 color = ambient + outRadiance;
 
 - 그려진 구들 중에서 roughness = 0, metallic = 1인 구를 가까이에서 보면 IBL에 의해 그려진 주변 배경의 모습이 구에 비추어 지는 것을 확인할 수 있다.
 ![PBR22](/note_image/PBR22.png)
+
+### OpenGL 오류 처리 방법
+
