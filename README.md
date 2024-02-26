@@ -10,6 +10,8 @@
 - Dependency.cmake 파일은 windows 운영체제를 기준으로 작성되었고, 다른 운영체제에서는 그대로 사용시 실행되지 않을 수도 있습니다.
 - 사용된 라이브러리들은 그 라이브러리의 최신 버전이 아닌 강의의 버전과 동일한 것을 사용했습니다. 최신 버전의 라이브러리에서는 이 코드가 동작하지 않을 수도 있습니다.
 - 현재 8-2 코드에는 오타가 있습니다. 실행은 되지만 빛이 이상하게 동작할 수 있는데, 8-2 commit에 어떤 오타가 있는지 메모가 있으므로 참고해서 고치면 문제 없을 것입니다.
+- OpenGL로 텍스쳐 없는 2D 도형을 그리는 방법은 Hazel 게임 엔진 개발자인 The Cherno님의 튜토리얼 <https://www.youtube.com/watch?v=W3gAzLwfIP0&list=PLlrATfBNZ98foTJPJ_Ev03o2oq3-GGOS2>의 내용을 참고했습니다.
+- OpenGL 오류 처리 방법은 <https://www.youtube.com/watch?v=FBbPWSOQ0-w&list=PLlrATfBNZ98foTJPJ_Ev03o2oq3-GGOS2&index=10>을 참고했습니다.
 
 ## 내용 정리 노트 - <https://rinthel.github.io/opengl_course> 참고
 
@@ -2505,3 +2507,105 @@ vec3 color = ambient + outRadiance;
 
 ### OpenGL 오류 처리 방법
 
+- OpenGL에서는 gl계열 함수에서 문제가 발생했는지 여부를 glGetError()를 호출함으로써 알 수 있다. 이 함수는 바로 전의 gl 함수 호출의 결과를 GLenum의 형태로 반환한다. 오류가 나지 않은 경우 GL_NO_ERROR, 아닌 경우 아래 표에 있는 GLenum 중 1개를 반환한다.
+
+| GLenum | 설명 |
+|--|--|
+| GL_NO_ERROR | 오류가 발생하지 않았다. 이 상수의 값은 0으로 보장된다. |
+| GL_INVALID_ENUM | 열거형 인수에 대해 허용되지 않는 값이 지정되었을 때 발생한다. 오류 플래그를 설정하는 것 외에는 부작용이 없다. |
+| GL_INVALID_VALUE | 숫자 인수가 범위를 벗어날 때 발생한. 오류 플래그를 설정하는 것 외에는 부작용이 없다. |
+| GL_INVALID_OPERATION | 현재 상태에서 허용되지 않은 작업을 했을 때 발생한다. 오류 플래그를 설정하는 것 외에는 부작용이 없다. |
+| GL_INVALID_FRAMEBUFFER_OPERATION | 프레임 버퍼 객체가 완전하지 않을 때 발생한다. 오류 플래그를 설정하는 것 외에는 부작용이 없다. |
+| GL_OUT_OF_MEMORY | 함수를 실행할 메모리가 부족할 때 발생한다. 이 오류가 기록된 후 오류 플래그의 상태를 제외하고 OpenGL의 상태는 정의되지 않는다. |
+| GL_STACK_UNDERFLOW | 함수에서 스택 언더플로가 발생했을 때 반환된다. 오류 플래그를 설정하는 것 외에는 부작용이 없다. |
+| GL_STACK_OVERFLOW | 함수에서 스택 오버플로가 발생했을 때 반환된다. 오류 플래그를 설정하는 것 외에는 부작용이 없다. |
+
+- glGetError를 사용할 때 주의할 점이 하나 있는데, glGetError가 오류를 찾아내서 오류 플래그를 설정했을 때, 플래그를 초기화 하지 않으면 다른 모든 오류는 무시한다는 점이다. 그래서 이 함수를 사용해서 오류 코드(GL_NO_ERROR 포함)를 얻었다면 플래그를 초기화 해서 다른 오류를 잡을 준비를 해야 한다.
+
+```c++
+// 오류 플래그를 재설정하는 함수
+static void GLClearError() 
+{
+    while (glGetError() != GL_NO_ERROR);
+}
+
+// 오류 체크, 원인 출력 함수
+static bool GLLogCall()
+{
+    while (GLenum error = glGetError()) {
+        std::cout << "[OpenGL Error] (" << error << ")" << std::endl;
+        return false;
+    }
+    return true;
+}
+```
+
+- 위의 두 함수를 gl 함수 위와 아래에 배치함으로써 오류 검사를 할 수 있다.
+
+```c++
+GLClearError();
+glDrawElements(GL_TRIANGLES, 6, GL_INT, nullptr);
+GLLogCall();
+```
+
+- 하지만 더 두 함수를 모든 gl 함수의 위/아래마다 붙이는 것은 쉽지 않으므로 아래와 같이 매크로를 사용하면 더 손쉽게 쓸 수 있다. (Note : __debugbreak()는 WIN32 API에 있는 함수로 windows에서만 쓸 수 있다.)
+
+```c++
+#define ASSERT(x) if(!(x)) __debugbreak();
+#ifdef DEBUG
+   #define GLCall( x ) \
+     GLClearError(); \
+     x; \
+     ASSERT( GLLogCall( #x, __FILE__, __LINE__) ) __debugbreak();
+   #define GLCallR( x ) [&]() { \
+     GLClearError(); \
+     auto retVal = x; \
+     ASSERT( GLLogCall( #x, __FILE__, __LINE__) ) __debugbreak(); \
+     return retVal; \
+   }()
+#else
+   #define GLCall( x ) x
+   #define GLCallR( x ) x
+#endif
+
+// 일부 변형함
+// Source : https://www.youtube.com/watch?v=FBbPWSOQ0-w&list=PLlrATfBNZ98foTJPJ_Ev03o2oq3-GGOS2&index=10
+```
+
+- GLCall 매크로는 일반적인 gl 함수에, GLCallR 매크로는 gl 함수 중에서 반환값이 있고, 그 값을 특정 변수에 저장하는 경우에 사용한다.
+
+```c++
+GLCall(glDrawElements(GL_TRIANGLES, 6, GL_INT, nullptr));
+unsigned int id = GLCallR(glCreateShader(type));
+```
+
+- GLLogCall 함수를 수정하여 오류의 종류, 오류가 난 곳의 파일과 줄을 더 친절하게 설명할 수 있도록 한다.
+
+```c++
+// 오류를 감지하고 오류 코드를 출력하는 함수
+static bool GLLogCall(const char* function, const char* file, int line) 
+{
+    while (GLenum error = glGetError()) {
+        // 오류 발생시 오류 코드에 해당하는 오류의 종류를 판단한다.
+        std::string errStr;
+        switch (error)
+        {
+            case GL_INVALID_ENUM:                  errStr = "Invalid enum error"; break;
+            case GL_INVALID_VALUE:                 errStr = "Invalid value error"; break;
+            case GL_INVALID_OPERATION:             errStr = "Invalid operation error"; break;
+            case GL_STACK_OVERFLOW:                errStr = "Stack Overflow"; break;
+            case GL_STACK_UNDERFLOW:               errStr = "Stack Underflow"; break;
+            case GL_OUT_OF_MEMORY:                 errStr = "Out of memory"; break;
+            case GL_INVALID_FRAMEBUFFER_OPERATION: errStr = "Invalid framebuffer operation error"; break;
+            default:                               errStr = "Unknown error"; break;
+        }
+        // 오류 메시지를 출력한다.
+        std::cout << "[OpenGL Error] " << errStr <<  " (" << error << ")" << std::endl;
+        std::cout << "Happened in File " << file << " in line " << line << std::endl;
+        std::cout << function << std::endl;
+        return false;
+    }
+    return true;
+}
+// 참조 : https://learnopengl.com/In-Practice/Debugging
+```
