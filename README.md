@@ -321,6 +321,256 @@ void Context::Render() {
 
 - m_program->Get()은 쉐이더 프로그램의 ID를 가져오는 것이고, m_program->Use()는 glUseProgram(ID)와 같다.
 
+### 텍스쳐
+
+- 정점의 수를 늘리고 정점들의 색을 달리 지정해 주면 더 높은 퀄리티의 도형이나 모델을 만들 수 있지만 각 정점들에 색을 지정하는 것만으로는 높은 수준의 3D 모델을 만들어내기 어렵고 정점의 수가 늘어날 수록 비용도 커지게 된다. 그래서 면에 이미지를 입혀서 적은 비용으로 디테일한 렌더링을 할 수 있도록 하는 것이 텍스쳐이다.
+
+#### 텍스쳐 관련 개념
+
+##### 1. 텍스쳐 좌표
+
+- 텍스쳐를 도형에 입히기 위해서는 해당 정점에서 텍스쳐의 어느 부분을 가져올 지를 정해야 한다. 그래서 OpenGL에서는 아래 그림처럼 왼쪽 하단을 (0, 0), 오른쪽 상단을 (1, 1)로 하고 오른쪽으로 갈수록 x좌표가 증가, 위쪽으로 갈수록 y좌표가 증가하는 텍스쳐 좌표계를 사용한다.
+![texture1](/note_image/texture1.png)
+
+- 정점의 텍스쳐 좌표는 (2차원 기준으로) 정점 속성의 형태로 s, t 형태의 2개의 float 형태로 입력된다. vertex shader에서 계산된 텍스쳐 좌표는 rasterization을 거친 뒤 fragment shader에서 해당 좌표에 해당하는 픽셀을 텍스쳐에서 가져오게 되므로써 텍스쳐를 면에다가 그릴 수 있게 된다.
+
+##### 2. texture Wrapping
+
+- 정점에는 0 ~ 1 범위를 벗어난 텍스쳐 좌표의 값도 입력될 수 있다. 이 경우 범위 밖의 픽셀을 어떻게 지정할 지를 결정해야 하는데 이때 사용하는 것이 texture wrapping이다.
+- Texture wrapping에는 원래 텍스쳐를 벗어난 범위에 계속 이어붙인 형태의 GL_REPEAT, GL_REPEAT와 비슷하지만 거울 형태로 이어붙인 GL_MIRRORED_REPEAT, 텍스쳐의 가장자리 픽셀을 연장한 GL_CLAMP_TO_EDGE, 범위를 벗어난 모든 픽셀을 지정한 색상으로 바꾸는 GL_CLAMP_TO_BORDER가 있다.
+
+##### 3. texture filtering
+
+- 우리가 텍스쳐로 사용할 이미지는 화면의 크기와 달라 화면보다 크거나 작은 경우가 많을 것이다. 이때 픽셀의 색을 결정할 때 텍스쳐 이미지에 있는 좌표들을 어떻게 사용할 것인지를 지정하는 것이 texture filtering 이다.
+
+- GL_NEAREST를 지정하면, 해당 텍스쳐 좌표에서 가장 가까운 픽셀의 색을 그대로 들고오게 된다.
+- GL_LINEAR를 지정하면, 해당 텍스쳐 좌표에서 인접한 4개의 픽셀의 색의 평균을 가져오게 된다.
+
+#### OpenGL에서 텍스쳐 사용하기
+
+##### 1. texture object 생성 / 바인딩
+
+- glGenTextures(개수, &ID) 함수를 이용해서 텍스쳐 오브젝트를 생성한다.
+- glBindTexture(타입, ID)로 텍스쳐 바인딩을 해서 사용할 수 있게 만든다. 타입에는 GL_TEXTURE_2D를 넣는다.
+
+```c++
+uint32_t m_texture;
+glGenTextures(1, &m_texture);
+glBindTexture(GL_TEXTURE_2D, m_texture);
+```
+
+##### 2. 텍스쳐의 wrapping과 filtering을 설정한다
+
+- glTexParameteri(타입, 설정, 설정값)로 현재 바인딩된 텍스쳐의 wrapping과 filtering을 설정할 수 있다.
+- GL_TEXTURE_MIN_FILTER, GL_TEXTURE_MAG_FILTER를 사용해서 텍스쳐가 확대, 축소 되었을 때 어떤 filter를 사용할 지를 각각 지정해 줄 수 있다.
+- GL_TEXTURE_WRAP_S, GL_TEXTURE_WRAP_T를 사용해서 x, y 좌표가 0 ~ 1의 범위를 벗어났을 때 어떤 방식으로 wrapping을 해줄지를 결정할 수 있다.
+
+```c++
+// filtering
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+// wrapping
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+```
+
+- 만들려고 하는 텍스쳐가 2개 이상인 경우 ID를 저장할 수 있는 여러 개의 uint32_t 변수를 생성하고 특정 텍스쳐를 설정하고자 할 때 그 텍스쳐의 ID를 glBindTexture()에 넣어 바인딩한 뒤 설정을 해주면 된다.
+
+##### 3. 이미지 데이터를 GPU로 복사한다
+
+- 우선 이미지 데이터를 가져와야 한다. stb library를 사용하면 이미지를 OpenGL에서 사용할 수 있는 형태로 불러올 수 있다.
+- stbi_set_flip_vertically_on_load()를 사용한 이유는 stb에서는 이미지를 좌측 상단부터 읽어오지만 OpenGL에서 텍스쳐 좌표는 왼쪽 아래에서 시작하기 때문에 상하가 반전되기 때문이다.
+- stbi_load(파일 경로, &너비, &높이, &채널 수, 오프셋) 함수를 이용해서 이미지를 불러올 수 있다. 반환형은 uint8_t*이고, 너비, 높이, 채널 수(RGB는 3, RGBA는 4)가 자동으로 지정된다.
+
+```c++
+// Image 클래스에서 stb를 사용하는 부분을 들고옴
+bool Image::LoadWithStb(const std::string& filepath) {
+    stbi_set_flip_vertically_on_load(true);
+    m_data = stbi_load(filepath.c_str(), &m_width, &m_height, &m_channelCount, 0);
+    if (!m_data) {
+        SPDLOG_ERROR("failed to load image: {}", filepath);
+        return false;
+    }
+    return true;
+}
+```
+
+- glTexImage2D(target, level, internalFormat, width, height, border, format, type, data)를 사용해서 바인딩된 텍스쳐에 이미지 데이터를 넣어줄 수 있다.
+- target에는 텍스쳐 타입(GL_TEXTURE_2D), level에는 mipmap level (0이 기본, 1씩 늘어날 때마다 크기가 반이 됨), internelFormat에는 만들어 줄 `텍스쳐`의 이미지 포맷이다.
+- width, height에는 이미지의 크기가 들어간다. stbi_load를 사용해서 얻어온 값을 쓴다. border에는 텍스쳐 외각에 지정할 보더의 크기를 지정해준다.
+- format에는 가져오는 `이미지`의 포맷을 넣어준다. type에는 이미지를 이루는 각 채널이 어떤 값으로 이루어져 있는지를 지정한다. png 파일에는 GL_UNSIGNED_BYTE를 지정해준다. 마지막으로 data에는 이미지 데이터를 가지고 있는 uint8_t* 포인터를 넣어주면 된다.
+
+- internalFormat, format에 들어가는 '포맷'에는 `GL_RED`(빨강색만 존재), `GL_RG`(빨강, 초록), `GL_RGB`(빨강, 초록, 파랑), `GL_RGBA`(RGB + 투명도) 등이 있다. 더 자세한 내용은 <https://www.khronos.org/opengl/wiki/Image_Format> 참고
+
+```c++
+glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+    image->GetWidth(), image->GetHeight(), 0,
+    GL_RGB, GL_UNSIGNED_BYTE, image->GetData());
+```
+
+##### 4. 쉐이더에 사용하고자 하는 texture의 ID를 uniform 변수 형태로 전달한다
+
+- VBO에서 정점 속성에 텍스쳐 좌표에 관한 정보를 추가로 지정해주어야 한다.
+
+```c++
+// 정점 데이터
+float vertices[] = {
+    // x, y, z(정점 위치), r, g, b(정점 색깔), s, t(정점의 텍스쳐 좌표)
+     0.5f,  0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f,
+     0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f,
+    -0.5f, -0.5f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+    -0.5f,  0.5f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+};
+```
+
+- 정점 데이터가 바뀌었으므로, 정점 속성에 텍스쳐 좌표를 저장하는 2번 속성이 추가되어야 한다.
+
+```c++
+// 2. VBO 바인딩 / 정점 데이터 복사
+// 마지막 인자에 곱해지는 값은 정점 리스트의 데이터 크기이다.
+m_vertexBuffer = Buffer::CreateWithData(GL_ARRAY_BUFFER, GL_STATIC_DRAW, vertices, sizeof(float) * 32);
+
+// 3. VAO에서 정점 데이터의 속성을 지정
+// 5번째 인자에 곱해지는 값은 한 정점 당 데이터 크기이다.(지금은 위치 3개, 색깔 3개, 텍스쳐 2개로 총 8개)
+m_vertexLayout->SetAttrib(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 8, 0); // 위치(0-2)
+m_vertexLayout->SetAttrib(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 8, sizeof(float) * 3); // 색상(3-5)
+m_vertexLayout->SetAttrib(2, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 8, sizeof(float) * 6); // 텍스쳐 좌표(6-7)
+```
+
+- CreateWithData() 함수에는 glGenBuffers, glBindBuffer, glBufferData 함수가 내장되어 있고, SetAttrib() 함수에는 glEnableVertexAttribArray, glVertexAttribPointer 함수가 내장되어 있다.
+- 이제 쉐이더에서 새로운 속성인 텍스쳐 좌표를 받아야 한다. vertex shader에서는 aTexCoord라는 이름으로 텍스쳐 좌표를 받아오고 vec2의 형태로 fragment shader에 전달해준다.
+
+```glsl
+#version 330 core
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec3 aColor;
+layout (location = 2) in vec2 aTexCoord;
+
+out vec4 vertexColor;
+out vec2 texCoord;
+
+void main() {
+    gl_Position = vec4(aPos, 1.0);
+    vertexColor = vec4(aColor, 1.0);
+    texCoord = aTexCoord; // 텍스쳐 좌표를 fragment shader에 전달
+}
+```
+
+- fragment shader에서는 vertex shader에서 받은 텍스쳐 좌표를 이용해서, 텍스쳐에서 해당 좌표에 대응하는 픽셀을 가져온다. texture 함수에 만들어진 텍스쳐 오브젝트의 ID와 텍스쳐 좌표를 전달하면 색상을 계산해 낼 수 있다.
+
+```glsl
+#version 330 core
+in vec4 vertexColor;
+in vec2 texCoord;
+out vec4 fragColor;
+
+uniform sampler2D tex;
+
+void main() {
+    fragColor = texture(tex, texCoord); // 텍스쳐에서 픽셀을 가져온다.
+}
+```
+
+- 이제 uniform 변수인 tex의 값을 전달해 주면 된다. glActiveTexture(GL_TEXTUREX)를 이용해서 특정 번호의 텍스쳐를 활성화 한 뒤, glBindTexture(GL_TEXTURE_2D, ID)로 해당 텍스쳐에 텍스쳐 오브젝트를 바인딩 해준다. glActiveTexture에 넣어준 인자에서 X에는 0 ~ 31의 수가 들어가고, ID에 대응하는 텍스쳐는 반드시 위의 1 ~ 3을 모두 수행한 것이어야 한다. 그 후 쉐이더 프로그램을 use 한 뒤, glUniform1i와 glGetUniformLocation 함수를 이용해서 uniform 변수에 방금 바인딩한 텍스쳐 슬롯의 번호를 넣어준다.(텍스쳐 오브젝트의 ID가 아니다.)
+
+```c++
+// 텍스쳐를 텍스쳐 슬롯 0번에 넣는다.
+glActiveTexture(GL_TEXTURE0);
+glBindTexture(GL_TEXTURE_2D, m_texture->Get());
+
+// 프래그먼트 쉐이더에 바인딩을 할 텍스쳐의 텍스쳐 슬롯 번호를 Uniform으로 전달해준다.
+m_program->Use();
+glUniform1i(glGetUniformLocation(m_program->Get(), "tex"), 0);
+```
+
+##### 5. 사용 후 메모리 해제
+
+- 텍스쳐 오브젝트는 glDeleteTextures(1, &ID)로 해제한다.
+- 이미지는 stbi_image_free(pointer)로 해제한다.
+
+#### Texture mipmap
+
+- 화면에 그리는 텍스쳐 면이 원래 이미지의 크기보다 작아질 경우 화면에 1개의 픽셀을 그리는 데에 원래 텍스쳐의 여러 개의 픽셀이 관여하게 되고 그 결과 원래 이미지에서는 볼 수 없었던 무늬가 발생하는 경우가 있다. 그래서 원래의 이미지를 더 작게 그리게 될 것을 대비해서 원래 이미지에서 가로와 세로의 길이를 절반씩 줄인 더 작은 이미지들을 만들 수 있는데 이를 mipmap이라고 한다.
+- 가장 큰 원래 이미지는 mipmap level이 0이고, 가로와 세로가 절반씩 줄때마다 레벨이 1씩 올라간다. 512x512의 이미지의 경우 256x256 크기가 1레벨, 128x128 크기가 2레벨, ... , 1x1 크기가 9레벨로 총 0 ~ 9단계까지 만들 수 있다.
+- 더 작은 이미지들을 저장하기 위해 원래의 이미지의 1/3크기의 공간이 추가로 필요하다.
+- OpenGL에서 mipmap을 사용하기 위해서는 텍스쳐에서 GL_TEXTURE_MIN_FILTER에 대한 필터를 지정할 때 GL_NEAREST_MIPMAP_NEAREST 또는 GL_LINEAR_MIPMAP_LINEAR를 전달해준다.
+  - GL_NEAREST_MIPMAP_NEAREST는 화면에서 텍스쳐 면의 크기에 제일 가까운 밉맵을 1개만 고른 뒤, 그 안에서 텍스쳐 좌표에 가장 가까운 픽셀을 1개 골라서 지정한다는 뜻이다.
+  - GL_LINEAR_MIPMAP_LINEAR는 화면에서 텍스쳐 면의 크기에 제일 가까운 밉맵 2개를 골라 그 둘을 이용해 선형 보간을 한 텍스쳐를 만들고, 그 텍스쳐에서 텍스쳐 좌표에 가장 가까운 픽셀 4개를 골라서 선형 보간한 색상을 지정한다는 뜻이다. (trilinear interpolation라고도 함)
+- 그 후 glTexImage2D() 함수 이후에 glGenerateMipmap() 함수를 사용해서 밉맵을 만들 수 있다.
+
+```c++
+glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+
+// ...
+
+glGenerateMipmap(GL_TEXTURE_2D);
+```
+
+#### Texture Blending
+
+- 2장 이상의 이미지를 하나의 면에다 혼합해서 넣는 방식을 texture blending이라고 한다.
+- fragment shader에서 2개의 텍스쳐를 받은 뒤, 각각의 텍스쳐에서 얻어온 픽셀 값에 최대 합이 1이 되도록 0 ~ 1사이의 실수를 곱해주면 두 텍스쳐의 모습이 섞여서 하나의 면에 들어가게 된다.
+
+```glsl
+#version 330 core
+in vec4 vertexColor;
+in vec2 texCoord;
+out vec4 fragColor;
+
+uniform sampler2D tex;
+uniform sampler2D tex2;
+
+void main() {
+    fragColor = texture(tex, texCoord) * 0.6 +
+        texture(tex2, texCoord) * 0.4; // 1번째 텍스쳐와 2번째 텍스쳐의 비율이 6 : 4가 되도록 혼합
+}
+```
+
+- 2개 이상의 텍스쳐를 쉐이더에 올바르게 전달하기 위해서 위에서 사용했던 glActiveTexture + glBindTexture 함수를 사용해 줄 것이다. 두 함수를 써서 특정 슬롯의 텍스쳐를 활성화 하고, 그 텍스쳐에 이미지를 붙인 텍스쳐 오브젝트를 바인딩한 뒤, glGetUniformLocation + glUniform1i을 사용해서 텍스쳐 슬롯 번호를 쉐이더에 전달해준다.
+
+```c++
+// 두 텍스쳐를 각각 텍스쳐 슬롯 0, 1번에 넣는다.
+glActiveTexture(GL_TEXTURE0);
+glBindTexture(GL_TEXTURE_2D, m_texture->Get());
+glActiveTexture(GL_TEXTURE1);
+glBindTexture(GL_TEXTURE_2D, m_texture2->Get());
+
+// 프래그먼트 쉐이더에 바인딩을 할 두 텍스쳐의 텍스쳐 슬롯 번호를 Uniform으로 전달해준다.
+m_program->Use();
+glUniform1i(glGetUniformLocation(m_program->Get(), "tex"), 0);
+glUniform1i(glGetUniformLocation(m_program->Get(), "tex2"), 1);
+```
+
+#### (+) 이미지(png) 생성하기
+
+- stbi를 이용해 외부의 이미지를 불러오는 것이 아니라 코드 상에서 png 데이터를 직접 만들어서 OpenGL에 전달해 줄 수도 있다. width, height, channelCount를 지정해 준 뒤 width x height x channelCount 길이의 uint8_t를 원소로 하는 배열을 생성해서 data에 넣어준 뒤, 코드에서 data를 수정해 주고, 텍스쳐를 만드는 과정에서 glTexImage2D() 함수에 width, height와 마지막 9번째 인자에 data를 전달해 주면 된다.
+
+```c++
+// 이미지 데이터를 생성해 주는 함수
+bool Image::Allocate(int width, int height, int channelCount) {
+    m_width = width;
+    m_height = height;
+    m_channelCount = channelCount;
+    m_data = (uint8_t*)malloc(m_width * m_height * m_channelCount);
+    return m_data ? true : false;
+}
+
+// data 지정 함수의 예시, 여기서는 원 강의에서 사용한 체커보드를 만드는 함수를 가져왔다.
+void Image::SetCheckImage(int gridX, int gridY) {
+    for (int j = 0; j < m_height; j++) {
+        for (int i = 0; i < m_width; i++) {
+            int pos = (j * m_width + i) * m_channelCount;
+            bool even = ((i / gridX) + (j / gridY)) % 2 == 0;
+            uint8_t value = even ? 255 : 0;
+            for (int k = 0; k < m_channelCount; k++)
+                m_data[pos + k] = value;
+            if (m_channelCount > 3)
+                m_data[3] = 255;
+        }
+    }
+}
+```
+
 ### 3D 관련 간단 노트
 
 - Note : 확대 -> 회전 -> 평행이동 순으로 점에 선형 변환 적용
