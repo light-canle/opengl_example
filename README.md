@@ -635,12 +635,276 @@ void Image::SetCheckImage(int gridX, int gridY) {
 }
 ```
 
-### 3D 관련 간단 노트
+### Transformation
 
-- Note : 확대 -> 회전 -> 평행이동 순으로 점에 선형 변환 적용
-- translate로 평행이동, rotate로 회전, scale로 크기 변경
+- 화면에서 물체를 원하는 위치에 그리기 위해 VBO의 정점 위치 인자를 수정할 수 있지만 매번 그 수치를 바꾸는 것은 비효율적이다. 그래서 이 위치에 물체가 이동, 회전한 정보 등을 저장하는 추가적인 행렬을 곱한 뒤 그 행렬과 위치 벡터를 선형 변환을 사용하는 방법을 사용할 수 있다.
 
-- lookAt 함수는 아래와 같이 카메라 행렬의 역행렬을 계산해준다.
+- 동차 좌표계 : 표현하고자 하는 차원수보다 1차원이 늘어난 벡터로 좌표를 표시하는 방법
+- 3차원에서는 4번째 차원인 w를 추가해서 동차 좌표계를 표현한다.
+- (wx, wy, wz, w)와 (x, y, z, 1)은 동일한 좌표를 표현한다.
+- (x, y, z, 1)은 점을 의미하고, (x, y, z, 0)은 벡터를 의미한다.
+- 이렇게 동차 좌표계를 사용하게 되면 평행이동과 원근 투영을 선형 변환으로 표현할 수 있다는 장점이 있다.
+
+#### 3가지 transformation
+
+##### 1. scaling
+
+- `원점`을 기준으로 벡터의 크기를 확대하거나 축소한다.
+- 대각 성분에 각 차원별로 몇 배를 조정할 지 배율을 써놓은 4x4 행렬로 표현한다.
+
+##### 2. Translation
+
+- 점을 각 축마다 지정한 수치만큼 이동시킨다.
+- 대각 성분이 모두 1이고, 4번째 열에 x, y, z축으로 얼마만큼 이동할 지를 써준다.
+
+##### 3. Rotation
+
+- 회전의 경우 어떤 축을 기준으로 점들을 특정 각도만큼 회전시킨다.
+- 어떤 축을 기준으로 하느냐에 따라 회전 행렬은 달라진다.
+
+
+- 이 3가지 transformation을 한 번에 적용할 경우에는 확대 -> 회전 -> 평행이동 순으로 점에 선형 변환 적용
+
+#### glm 라이브러리
+
+- OpenGL math library로 3D 그래픽스에 필요한 4차원 선형대수 연산관련 기능을 제공하는 C++ 라이브러리 이다.
+- glm 라이브러리를 cmake로 가져온 뒤 아래 세 헤더를 추가해서 사용할 수 있다. (이 예제에서는 common.h에 추가)
+
+```c++
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+```
+
+- translate로 평행이동, rotate로 회전, scale로 크기 변경 행렬을 만들어 낼 수 있다.
+- 세 함수 모두 1번째 인자에 glm::mat4(1.0f)를 넣는다.
+- translate의 경우 2번째 인자에 평행이동할 양을 glm::vec3(x, y, z)의 형태로 넣어주면 된다.
+- scale의 경우 2번째 인자에 각 축마다 확대/축소할 비율을 glm::vec3(x, y, z)의 형태로 넣어주면 된다.
+- rotate의 경우 2번째 인자에 회전할 각도를 써준다. 도를 라디안으로 바꾸기 위해 glm::radians(각도) 함수를 쓰면 된다. 그리고 3번째 인자에는 회전축을 써준다. glm::vec3(x, y, z)의 형태로 임의의 회전축을 지정해줄 수 있고, x, y, z축을 기준으로 하려면 (1, 0, 0), (0, 1, 0), (0, 0, 1)을 써주면 된다.
+- 세 translation을 모두 지정한 후 확대 -> 회전 -> 평행이동 순으로 적용되도록 translation x rotation x scale x vec형태로 곱해서 대입한다. 이 완성된 행렬을 Model Matrix라고 한다.
+
+```c++
+// 위치 (1, 2, 3)의 점. 동차좌표계 사용
+glm::vec4 vec(1.0f, 2.0f, 3.0f, 1.0f);
+// 단위행렬 기준 (1, 1, 2)만큼 평행이동하는 행렬
+auto trans = glm::translate(glm::mat4(1.0f), glm::vec3(1.0f, 1.0f, 2.0f));
+// 단위행렬 기준 y축으로 90도만큼 회전하는 행렬
+auto rot = glm::rotate(glm::mat4(1.0f),
+  glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+// 단위행렬 기준 모든 축에 대해 3배율 확대하는 행렬
+auto scale = glm::scale(glm::mat4(1.0f), glm::vec3(3.0f));
+// 확대 -> 회전 -> 평행이동 순으로 점에 선형 변환 적용
+vec = trans * rot * scale * vec;
+```
+
+#### 쉐이더에서 translation 반영하기
+
+- 행렬 계산은 glm 라이브러리를 이용하고 vertex shader에서는 이 계산된 행렬을 uniform 변수로 받은 뒤, 이것을 정점 속성으로 받은 위치 속성 (aPos)와 곱해주면 된다.
+
+```glsl
+#version 330 core
+layout (location = 0) in vec3 aPos;
+[...]
+ 
+uniform mat4 transform;
+ 
+[...]
+ 
+void main() {
+    gl_Position = transform * vec4(aPos, 1.0);
+    [...]
+}
+```
+
+- 이제 프로그램을 사용한 뒤 계산된 행렬을 glGetUniformLocation + glUniformMatrix4fv함수를 사용해서 mat4의 형태로 vertex shader에 전달해 줄 수 있다. glUniformMatrix4fv에는 glGetUniformLocation으로 얻은 uniform의 위치, 전달할 행렬 개수, transpose 여부(여기서는 GL_FALSE로 보냄), 데이터를 인자로 전달한다.
+- glm::value_ptr()을 사용해서 쉐이더에서 인식할 수 있는 형태로 행렬을 보낼 수 있다.
+
+```c++
+// 0.5배 축소후 z축으로 90도 회전하는 행렬
+auto transform = glm::rotate(
+    glm::scale(glm::mat4(1.0f), glm::vec3(0.5f)),
+    glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+auto transformLoc = glGetUniformLocation(m_program->Get(), "transform");
+glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transform));
+```
+
+#### Coordinate System (좌표계)
+
+- 어떤 정점의 위치를 기술하기 위한 기준이다.
+- 선형 변환은 한 좌표계에 대해 기술된 벡터를 다른 좌표계에 대해 기술하는 과정이라고 할 수 있다.
+- World space는 원점이 (0, 0, 0)이고, 회전이나 크기 변환이 되지 않은 기준 좌표계를 뜻한다.
+- Local space는 특정 오브젝트를 기준으로 하는 좌표계를 뜻한다.
+- View space는 세상을 바라보는 카메라를 기준으로 하는 좌표계를 뜻한다.
+- Canonical space는 view space에서 화면에 보이는 영역인 -1.0 ~ 1.0 좌표만 남긴 것을 뜻한다. clip space라고도 한다.
+
+#### 좌표계 변환
+
+- 우리가 만든 오브젝트를 화면에 그리기 위해서는 물체 기준으로 작성된 Local space의 좌표를 최종적으로 화면의 좌표계인 Canonical space로 변환하는 것이 필요하다.
+
+> 1. 우선, local space를 world space로 변환한다. 이 변환을 위해 사용되는 행렬을 Model Matrix라고 하고 위에서 언급한 translation 3가지를 모두 곱한 것이 바로 이 행렬이다.
+> 2. 그 다음으로 world space를 카메라를 기준으로 한 view space로 변환한다. 이 변환을 위해 사용되는 행렬을 View Matrix라고 한다. 이 행렬은 카메라의 위치, 회전을 담고 있는 행렬이다.
+> 3. 이제 view space를 canonical space로 변환한다. 이 변환을 위해 사용되는 행렬을 Projection Matrix라고 한다.
+> 4. view space로 변환된 좌표를 clip space의 좌표로 투영한다. 이 좌표는 -1.0 ~ 1.0 범위로 처리되고, 이 범위 밖에 있는 vertex들은 그려지지 않게 된다.
+> 5. 마지막으로 이 좌표들을 glViewport 함수를 통해 정의된 좌표 범위로 변환해서 screen space로 변환하면 끝이다. 이 좌표들은 rasterizer로 보내진다.
+
+#### Orthogonal projection (직교 투영)
+
+- 원근감 없이 평행한 선이 계속 평행하도록 투영하는 방식이다.
+![transformation1-1](/note_image/transformation1-1.png)
+- left, right, bottom, top, near, far의 6개의 파라미터를 받는다. left, right, bottom, top은 near plane과 far plane의 상하좌우 위치를 뜻한다. near, far는 near과 far plane이 카메라와 떨어진 거리를 뜻한다.
+![transformation1-2](/note_image/transformation1-2.png)
+- 아래와 같은 행렬이 projection matrix이다.
+
+- $\begin{pmatrix} \frac{2}{r-l} & 0 & 0 & -\frac{r+l}{r-l} \\ 0 & \frac{2}{t-b} & 0 & -\frac{t+b}{t-b} \\ 0 & 0 & \frac{-2}{f-n} & -\frac{f+n}{f-n} \\ 0 & 0 & 0 & 1 \end{pmatrix}$
+
+- z축에 - 기호가 있는 이유는 clip space에서는 오른손 좌표계가 왼손 좌표계로 바뀌기 때문이다.
+
+#### Perspective projection (원근 투영)
+
+- 변환 이전에 평행한 선이 변환 후에 한점에서 마난다. 이를 소실점이라고 한다.
+- 멀리 있을 수록 물체가 작게 보이므로 원근감이 발생하게 된다.
+![transformation2-1](/note_image/transformation2-1.png)
+
+- 파라미터로는 aspect(종횡비), fov(Field of View), far, near를 받는다. 종횡비는 화면의 가로와 세로의 비율을 나타낸 것이고(screen_width / screen_height), fov는 보이는 화면 비율, 즉 far와 near plane이 얼마나 큰 지를 결정한다. 현실과 가까운 값을 주려면 45로 설정하면 된다.
+![transformation2-2](/note_image/transformation2-2.png)
+- 아래와 같은 행렬이 projection matrix이다.
+- $\begin{pmatrix} \frac{1}{aspect \times \tan \left(\frac{fov}{2}\right)} & 0 & 0 & 0 \\ 0 & \frac{1}{\tan \left(\frac{fov}{2}\right)} & 0 & 0 \\ 0 & 0 & -\frac{far+near}{far-near} & -\frac{2 \times far \times near}{far-near} \\ 0 & 0 & -1 & 0 \end{pmatrix}$
+
+#### Transformation 구현
+
+- Transformation은 model, view, projection matrix를 모두 곱해서 물체의 local space를 clip space로 바꾸는 과정이다. 3개의 행렬을 모두 곱한 행렬을 MVP matrix라고 한다.
+- vertex shader에 transform을 넘겨줄 때, MVP matrix를 넘겨주면 된다.
+
+```c++
+// Model matrix
+auto model = glm::rotate(glm::mat4(1.0f),
+  glm::radians(-50.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+// View matrix : 카메라는 원점으로부터 z축 방향으로 -3만큼 떨어짐
+auto view = glm::translate(glm::mat4(1.0f),
+  glm::vec3(0.0f, 0.0f, -3.0f));
+// Projection matrix : 종횡비 4:3, 세로화각 45도의 원근 투영
+auto projection = glm::perspective(glm::radians(45.0f),
+  (float)640 / (float)480, 0.01f, 10.0f);
+// Model -> View -> Projection 순으로 적용되게 곱함
+auto transform = projection * view * model;
+// MVP matrix를 전달
+auto transformLoc = glGetUniformLocation(m_program->Get(), "transform");
+glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transform));
+```
+
+#### 3차원 큐브와 depth test
+
+- transformation을 구현했기 때문에 이제 3차원 도형들을 그릴 수 있다.
+- 아래와 같은 긴 배열로 3차원 큐브를 그릴 수 있다. 큐브의 꼭짓점이 8개인데 정점 데이터가 24개나 되는 이유는 각 꼭짓점에서 만나는 3개의 면의 normal vector가 모두 다르기 때문에 같은 꼭짓점에 대한 정점 데이터가 3개씩 있어서 그렇다. (<https://rinthel.github.io/opengl_course>의 7.Transformation의 49번 슬라이드에서 가져옴)
+
+```c++
+float vertices[] = {
+    // x, y, z, s, t
+    -0.5f, -0.5f, -0.5f, 0.0f, 0.0f,
+     0.5f, -0.5f, -0.5f, 1.0f, 0.0f,
+     0.5f,  0.5f, -0.5f, 1.0f, 1.0f,
+    -0.5f,  0.5f, -0.5f, 0.0f, 1.0f,
+
+    -0.5f, -0.5f,  0.5f, 0.0f, 0.0f,
+     0.5f, -0.5f,  0.5f, 1.0f, 0.0f,
+     0.5f,  0.5f,  0.5f, 1.0f, 1.0f,
+    -0.5f,  0.5f,  0.5f, 0.0f, 1.0f,
+
+    -0.5f,  0.5f,  0.5f, 1.0f, 0.0f,
+    -0.5f,  0.5f, -0.5f, 1.0f, 1.0f,
+    -0.5f, -0.5f, -0.5f, 0.0f, 1.0f,
+    -0.5f, -0.5f,  0.5f, 0.0f, 0.0f,
+
+    0.5f,  0.5f,  0.5f, 1.0f, 0.0f,
+    0.5f,  0.5f, -0.5f, 1.0f, 1.0f,
+    0.5f, -0.5f, -0.5f, 0.0f, 1.0f,
+    0.5f, -0.5f,  0.5f, 0.0f, 0.0f,
+
+    -0.5f, -0.5f, -0.5f, 0.0f, 1.0f,
+     0.5f, -0.5f, -0.5f, 1.0f, 1.0f,
+     0.5f, -0.5f,  0.5f, 1.0f, 0.0f,
+    -0.5f, -0.5f,  0.5f, 0.0f, 0.0f,
+
+    -0.5f,  0.5f, -0.5f, 0.0f, 1.0f,
+     0.5f,  0.5f, -0.5f, 1.0f, 1.0f,
+     0.5f,  0.5f,  0.5f, 1.0f, 0.0f,
+    -0.5f,  0.5f,  0.5f, 0.0f, 0.0f,
+};
+
+uint32_t indices[] = {
+    0,  2,  1,  2,  0,  3,
+    4,  5,  6,  6,  7,  4,
+    8,  9, 10, 10, 11,  8,
+    12, 14, 13, 14, 12, 15,
+    16, 17, 18, 18, 19, 16,
+    20, 22, 21, 22, 20, 23,
+};
+```
+
+- glBufferData()에 배열 크기를 전달할 때 VBO는 `sizeof(float) * 120`, EBO는 `sizeof(uint32_t) * 36`을 지정하고 정점 속성으로는 0번에 위치, 2번에 텍스쳐 좌표를 입력한다.
+- 그릴 떄는 glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);을 사용한다.
+- 이 큐브를 그냥 그리게 되면 박스의 뒷면이 앞면 앞에 그려져 큐브가 이상하게 되는 문제점이 있다. 이유는 depth test를 활성화 하지 않아 렌더링 순서상 나중에 그려지는 면을 이미 그려진 그림 위에 덮어 씌우기 때문이다. 그래서 뒷면이 앞면에 가려 보이지 않게 하기 위해 depth test를 활성화 시켜주어야 한다.
+- Context::Render() 함수의 앞에 아래 두 줄을 추가해 주면 된다.
+
+```c++
+glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+// depth test 활성화
+glEnable(GL_DEPTH_TEST);
+```
+
+#### (+) glfwGetTime()을 이용한 큐브 애니메이션
+
+- MVP matrix를 설정하는 코드를 매 프레임 실행되는 Context::Render()로 옮기고, 큐브의 위치, 회전, 크기를 조절하는 model matrix를 매 프레임마다 수정하게 되면 큐브의 회전과 움직임을 구현할 수 있게 된다.
+
+```c++
+void Context::Render() {
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    auto projection = glm::perspective(glm::radians(45.0f),
+        (float)640 / (float)480, 0.01f, 10.0f);
+    auto view = glm::translate(glm::mat4(1.0f),
+        glm::vec3(0.0f, 0.0f, -3.0f));
+    auto model = glm::rotate(glm::mat4(1.0f),
+        glm::radians((float)glfwGetTime() * 120.0f),
+        glm::vec3(1.0f, 0.5f, 0.0f));
+    auto transform = projection * view * model;
+    m_program->SetUniform("transform", transform);
+
+    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+}
+```
+
+- 그리고 각 큐브마다 위치 벡터를 다르게 설정하고, for 문 안에서 model matrix를 다르게 설정한 뒤 glDrawElements를 호출해 주면 여러개의 큐브를 그릴 수 있다.
+
+```c++
+for (size_t i = 0; i < cubePositions.size(); i++){
+    auto& pos = cubePositions[i];
+    auto model = glm::translate(glm::mat4(1.0f), pos);
+    model = glm::rotate(model,
+        glm::radians((float)glfwGetTime() * 120.0f + 20.0f * (float)i),
+        glm::vec3(1.0f, 0.5f, 0.0f));
+    auto transform = projection * view * model;
+    m_program->SetUniform("transform", transform);
+    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+}
+```
+
+#### Camera
+
+- 3D 공간을 바라보는 주체. 화면에서 보이는 3D 공간은 카메라의 시선이다.
+- view matrix를 사용해서 카메라의 위치와 보고 있는 지점에 따라 3D 공간을 어떻게 화면에 보이게 할 지를 결정한다.
+- 카메라 파라미터로는 position, target, up vector가 있다. 각각 카메라의 위치, 카메라가 바라보는 지점의 위치, 카메라 화면의 세로 축 방향을 뜻한다.
+- 이 3개의 파라미터를 사용해서 카메라 기준 좌표를 월드 좌표로 바꾼 행렬, 즉 카메라 행렬을 구한 뒤 그것의 역행렬을 구하면 view matrix를 만들어 낼 수 있다.
+
+> 1. 우선 아래 수식을 통해서 카메라를 기준으로 한 x, y, z축을 구한다.
+> $e$ 를 카메라의 위치, $t$ 를 카메라가 보는 위치, $u$를 카메라의 up vector라고 할 때,
+> $z = \frac{e-t}{\lVert e-t \rVert}, x = \frac{u \times z}{\lVert u \times z \rVert}, y = z \times x, p = e$
+> 2. 그 다음 x, y, z, p 벡터를 이용해 카메라 행렬을 구하고, 그 행렬의 역행렬을 구해 view matrix를 구한다.
+> $camera = \begin{pmatrix} x & y & z & p \\ 0 & 0 & 0 & 1 \end{pmatrix}$
+> $view = \begin{pmatrix} x^T & -x^Tp \\ y^T & -y^Tp \\ z^T & -z^Tp \\ 0 & 1 \end{pmatrix}$
+
+- 코드로는 아래와 같이 구현한다.
+- cameraPos, cameraTarget, cameraUp은 glm::vec3의 값으로 가져온다.
 
 ```c++
 auto cameraZ = glm::normalize(cameraPos - cameraTarget); // 카메라 z방향은 e - t 벡터의 방향이다.
@@ -648,7 +912,7 @@ auto cameraX = glm::normalize(glm::cross(cameraUp, cameraZ)); // 카메라 x 방
 auto cameraY = glm::cross(cameraZ, cameraX); // 카메라 y방향은 z방향과 x방향의 외적이다.
 ```
 
-- 구한 벡터들로 카메라 행렬(view matrix)을 구함
+- 구한 벡터들로 카메라 행렬(view matrix)을 구한다.
 
 ```c++
 auto cameraMat = glm::mat4(
@@ -659,6 +923,150 @@ auto cameraMat = glm::mat4(
 
 auto view = glm::inverse(cameraMat); // view 행렬은 카메라 행렬의 역행렬이다.
 ```
+
+- glm에는 저 역할을 대신 해주는 lookAt 함수가 있으므로 이것을 사용하면 된다.
+
+```c++
+auto view = glm::lookAt(cameraPos, cameraTarget, cameraUp);
+```
+
+#### Interactive Camera (카메라 조작하기)
+
+##### 1. 이동 (키보드)
+
+- 카메라를 키보드와 마우스를 이용해서 위치와 방향을 바꿀 수 있도록 할 것이다.
+- 카메라의 위치, front vector, up vector를 저장하는 변수를 context.h에 추가하고, ProcessInput이라는 새로운 함수를 만들어서 키보드 입력을 처리할 수 있게 한다.
+
+```c++
+void Context::ProcessInput(GLFWwindow* window) {
+    // 카메라 앞/뒤 이동
+    const float cameraSpeed = 0.01f;
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+        m_cameraPos += cameraSpeed * m_cameraFront;
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        m_cameraPos -= cameraSpeed * m_cameraFront;
+
+    // 카메라 좌우 이동
+    // 카메라 오른쪽 방향은 up 벡터와 -front 벡터의 외적이다.
+    auto cameraRight = glm::normalize(glm::cross(m_cameraUp, -m_cameraFront)); 
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        m_cameraPos += cameraSpeed * cameraRight;
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        m_cameraPos -= cameraSpeed * cameraRight;    
+
+    // 카메라 상하 이동
+    auto cameraUp = glm::normalize(glm::cross(-m_cameraFront, cameraRight));
+    if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
+        m_cameraPos += cameraSpeed * cameraUp;
+    if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
+        m_cameraPos -= cameraSpeed * cameraUp;
+}
+```
+
+- 그리고 cameraTarget 대신 카메라의 위치와, front vector를 더한 것을 lookAt 함수에 넣어준다.
+
+```c++
+// 카메라의 위치, 타겟 위치를 이용한 view 행렬 계산
+auto view = glm::lookAt(m_cameraPos, m_cameraFront + m_cameraPos, m_cameraUp);
+```
+
+- main.cpp의 메인 루프에서 저 함수를 호출해주면 이제 카메라의 위치를 키보드로 움직일 수 있게 된다.
+
+```c++
+while (!glfwWindowShouldClose(window)) {
+    glfwPollEvents(); // 키보드, 마우스 등 각종 이벤트 수집
+    // 키 입력 처리
+    context->ProcessInput(window);
+    // 렌더링 
+    context->Render();
+    // 프론트/백 버퍼 교체
+    glfwSwapBuffers(window);
+}
+```
+
+##### 2. 회전 (마우스)
+
+- 마우스를 이용해서 회전을 구현하기 위해서 마우스의 움직임을 받을 수 있도록 하고, 추가적으로 회전 이동을 제어하기 위해 마우스 오른쪽 버튼을 눌렀을 때만 이동할 수 있도록 할 것이다.
+- Euler angle은 물체의 회전 정보를 나타내는 대표적인 방식으로, x축을 기준으로 회전한 각도를 pitch, y축 기준 회전각을 yaw, z축 기준 회전각을 roll이라고 한다.
+- 카메라 회전에는 pitch와 yaw 수치만을 조절해서 카메라의 front vector의 방향을 구한다.
+
+##### 구현 과정
+
+- context.h에 카메라의 pitch와 yaw를 저장하는 변수와 이전 마우스 포인터 위치, 마우스 오른쪽 키를 눌렀는지 여부를 저장하는 변수를 추가한다.
+- 마우스 움직임을 입력받는 MouseMove() 함수와, 마우스 버튼을 입력받는 MouseButton() 함수를 추가한다. (Context 클래스)
+
+```c++
+// 마우스 입력(카메라 방향)
+void Context::MouseMove(double x, double y) {
+    // 마우스 오른쪽 클릭을 유지한 상태에서만 이동
+    if (!m_cameraControl)
+        return;
+    // 현재 위치 구함
+    auto pos = glm::vec2((float)x, (float)y);
+    auto deltaPos = pos - m_prevMousePos;
+
+    const float cameraRotSpeed = 0.8f;
+    // 카메라 좌우 각
+    m_cameraYaw -= deltaPos.x * cameraRotSpeed;
+    // 카메라 상하 값
+    m_cameraPitch -= deltaPos.y * cameraRotSpeed;
+
+    // 카메라 각도의 상한과 하한을 설정
+    if (m_cameraYaw < 0.0f)   m_cameraYaw += 360.0f;
+    if (m_cameraYaw > 360.0f) m_cameraYaw -= 360.0f;
+
+    if (m_cameraPitch > 89.0f)  m_cameraPitch = 89.0f;
+    if (m_cameraPitch < -89.0f) m_cameraPitch = -89.0f;
+
+    // 이전 위치 저장
+    m_prevMousePos = pos;
+}
+
+// 마우스 키 입력
+void Context::MouseButton(int button, int action, double x, double y) {
+    if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+        if (action == GLFW_PRESS) {
+            // 마우스 조작 시작 시점에 현재 마우스 커서 위치 저장
+            m_prevMousePos = glm::vec2((float)x, (float)y);
+            m_cameraControl = true;
+        }
+        else if (action == GLFW_RELEASE) {
+            m_cameraControl = false;
+        }
+    }
+}
+```
+
+- MouseMove() 함수에서는 현재 마우스 포인터 위치와 이전 마우스 포인터 위치의 차이를 구해서 변화한 양만큼 카메라의 회전 각도를 조절한다. MouseButton()에서는 마우스 오른쪽 버튼을 누른 경우에는 m_cameraControl을 true로 지정해 카메라의 회전각을 조절할 준비를 하고 이전 마우스 위치를 m_prevMousePos에 저장한다.
+- 마우스 관련 이벤트 함수에는 GLFWwindow를 받지 않고 있기 때문에 main.cpp에서 마우스 입력을 담당하는 콜백함수를 만들어 그 함수에서 위의 함수들을 호출하게 했다.
+
+```c++
+// 마우스 이동 이벤트 처리
+void OnCursorPos(GLFWwindow* window, double x, double y){
+    auto context = (Context*)glfwGetWindowUserPointer(window);
+    // 마우스 이동 처리
+    context->MouseMove(x, y);
+}
+
+// 마우스 클릭 이벤트 처리
+void OnMouseButton(GLFWwindow* window, int button, int action, int modifier) {
+    auto context = (Context*)glfwGetWindowUserPointer(window);
+    double x, y;
+    glfwGetCursorPos(window, &x, &y);
+    context->MouseButton(button, action, x, y);
+}
+```
+
+- main() 함수의 반복문 실행 전에 콜백 함수를 등록한다.
+
+```c++
+// 마우스가 이동했을 때 실행할 함수
+glfwSetCursorPosCallback(window, OnCursorPos);
+// 마우스를 클릭했을 때 실행할 함수
+glfwSetMouseButtonCallback(window, OnMouseButton);
+```
+
+- 이제 실행하면 마우스 오른쪽 버튼을 눌렀을 때 마우스를 움직여서 카메라의 회전각을 바꿀 수 있다.
 
 ### depth test 켜고 끄기
 
