@@ -755,7 +755,7 @@ glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transform));
 ![transformation1-2](/note_image/transformation1-2.png)
 - 아래와 같은 행렬이 projection matrix이다.
 
-- $\begin{pmatrix} \frac{2}{r-l} & 0 & 0 & -\frac{r+l}{r-l} \\ 0 & \frac{2}{t-b} & 0 & -\frac{t+b}{t-b} \\ 0 & 0 & \frac{-2}{f-n} & -\frac{f+n}{f-n} \\ 0 & 0 & 0 & 1 \end{pmatrix}$
+$$\begin{pmatrix} \frac{2}{r-l} & 0 & 0 & -\frac{r+l}{r-l} \\ 0 & \frac{2}{t-b} & 0 & -\frac{t+b}{t-b} \\ 0 & 0 & \frac{-2}{f-n} & -\frac{f+n}{f-n} \\ 0 & 0 & 0 & 1 \end{pmatrix}$$
 
 - z축에 - 기호가 있는 이유는 clip space에서는 오른손 좌표계가 왼손 좌표계로 바뀌기 때문이다.
 
@@ -768,7 +768,8 @@ glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transform));
 - 파라미터로는 aspect(종횡비), fov(Field of View), far, near를 받는다. 종횡비는 화면의 가로와 세로의 비율을 나타낸 것이고(screen_width / screen_height), fov는 보이는 화면 비율, 즉 far와 near plane이 얼마나 큰 지를 결정한다. 현실과 가까운 값을 주려면 45로 설정하면 된다.
 ![transformation2-2](/note_image/transformation2-2.png)
 - 아래와 같은 행렬이 projection matrix이다.
-- $\begin{pmatrix} \frac{1}{aspect \times \tan \left(\frac{fov}{2}\right)} & 0 & 0 & 0 \\ 0 & \frac{1}{\tan \left(\frac{fov}{2}\right)} & 0 & 0 \\ 0 & 0 & -\frac{far+near}{far-near} & -\frac{2 \times far \times near}{far-near} \\ 0 & 0 & -1 & 0 \end{pmatrix}$
+
+$$\begin{pmatrix} \frac{1}{aspect \times \tan \left(\frac{fov}{2}\right)} & 0 & 0 & 0 \\ 0 & \frac{1}{\tan \left(\frac{fov}{2}\right)} & 0 & 0 \\ 0 & 0 & -\frac{far+near}{far-near} & -\frac{2 \times far \times near}{far-near} \\ 0 & 0 & -1 & 0 \end{pmatrix}$$
 
 #### Transformation 구현
 
