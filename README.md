@@ -755,7 +755,7 @@ glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transform));
 ![transformation1-2](/note_image/transformation1-2.png)
 - 아래와 같은 행렬이 projection matrix이다.
 
-$$\begin{pmatrix} \frac{2}{r-l} & 0 & 0 & -\frac{r+l}{r-l} \\ 0 & \frac{2}{t-b} & 0 & -\frac{t+b}{t-b} \\ 0 & 0 & \frac{-2}{f-n} & -\frac{f+n}{f-n} \\ 0 & 0 & 0 & 1 \end{pmatrix}$$
+$$\begin{pmatrix} \frac{2}{r-l} & 0 & 0 & -\frac{r+l}{r-l} \\\\ 0 & \frac{2}{t-b} & 0 & -\frac{t+b}{t-b} \\\\ 0 & 0 & \frac{-2}{f-n} & -\frac{f+n}{f-n} \\\\ 0 & 0 & 0 & 1 \end{pmatrix}$$
 
 - z축에 - 기호가 있는 이유는 clip space에서는 오른손 좌표계가 왼손 좌표계로 바뀌기 때문이다.
 
@@ -769,7 +769,7 @@ $$\begin{pmatrix} \frac{2}{r-l} & 0 & 0 & -\frac{r+l}{r-l} \\ 0 & \frac{2
 ![transformation2-2](/note_image/transformation2-2.png)
 - 아래와 같은 행렬이 projection matrix이다.
 
-$$\begin{pmatrix} \frac{1}{aspect \times \tan \left(\frac{fov}{2}\right)} & 0 & 0 & 0 \\ 0 & \frac{1}{\tan \left(\frac{fov}{2}\right)} & 0 & 0 \\ 0 & 0 & -\frac{far+near}{far-near} & -\frac{2 \times far \times near}{far-near} \\ 0 & 0 & -1 & 0 \end{pmatrix}$$
+$$\begin{pmatrix} \frac{1}{aspect \times \tan \left(\frac{fov}{2}\right)} & 0 & 0 & 0 \\\\ 0 & \frac{1}{\tan \left(\frac{fov}{2}\right)} & 0 & 0 \\\\ 0 & 0 & -\frac{far+near}{far-near} & -\frac{2 \times far \times near}{far-near} \\\\ 0 & 0 & -1 & 0 \end{pmatrix}$$
 
 #### Transformation 구현
 
